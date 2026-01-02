@@ -7,13 +7,10 @@ class Pet {
   final int age;
   final String? imageUrl;
   final String createdAt;
-<<<<<<< HEAD
-=======
   final DateTime? dateOfBirth;
   final String? gender; // '수컷' or '암컷'
   final double? weight; // kg
   final bool isNeutered;
->>>>>>> 773bdf40970e0a49ac658aa7c2583ae758645030
 
   Pet({
     required this.id,
@@ -24,13 +21,10 @@ class Pet {
     required this.age,
     this.imageUrl,
     required this.createdAt,
-<<<<<<< HEAD
-=======
     this.dateOfBirth,
     this.gender,
     this.weight,
     this.isNeutered = false,
->>>>>>> 773bdf40970e0a49ac658aa7c2583ae758645030
   });
 
   Map<String, dynamic> toJson() {
@@ -43,13 +37,10 @@ class Pet {
       'age': age,
       'imageUrl': imageUrl,
       'createdAt': createdAt,
-<<<<<<< HEAD
-=======
       'dateOfBirth': dateOfBirth?.toIso8601String(),
       'gender': gender,
       'weight': weight,
       'isNeutered': isNeutered,
->>>>>>> 773bdf40970e0a49ac658aa7c2583ae758645030
     };
   }
 
@@ -63,8 +54,6 @@ class Pet {
       age: json['age'] as int,
       imageUrl: json['imageUrl'] as String?,
       createdAt: json['createdAt'] as String,
-<<<<<<< HEAD
-=======
       dateOfBirth: json['dateOfBirth'] != null
           ? DateTime.parse(json['dateOfBirth'] as String)
           : null,
@@ -108,7 +97,6 @@ class Pet {
       gender: json['gender'] as String?,
       weight: json['weight'] != null ? (json['weight'] as num).toDouble() : null,
       isNeutered: json['isNeutered'] as bool? ?? false,
->>>>>>> 773bdf40970e0a49ac658aa7c2583ae758645030
     );
   }
 }

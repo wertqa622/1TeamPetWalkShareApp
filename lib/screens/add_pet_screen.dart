@@ -232,7 +232,7 @@ class _AddPetScreenState extends State<AddPetScreen> {
   Widget build(BuildContext context) {
     final mediaQuery = MediaQuery.of(context);
     final bottomPadding = mediaQuery.viewInsets.bottom;
-    
+
     return Container(
       height: mediaQuery.size.height * 0.95,
       decoration: const BoxDecoration(
@@ -287,67 +287,67 @@ class _AddPetScreenState extends State<AddPetScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-              // 이름 필드
-              _buildTextField(
-                label: '이름 *',
-                controller: _nameController,
-                hintText: '반려동물 이름을 입력하세요',
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return '이름을 입력해주세요';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
+                    // 이름 필드
+                    _buildTextField(
+                      label: '이름 *',
+                      controller: _nameController,
+                      hintText: '반려동물 이름을 입력하세요',
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty) {
+                          return '이름을 입력해주세요';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 16),
 
-              // 품종 필드
-              _buildTextField(
-                label: '품종',
-                controller: _breedController,
-                hintText: '품종을 입력하세요',
-              ),
-              const SizedBox(height: 16),
+                    // 품종 필드
+                    _buildTextField(
+                      label: '품종',
+                      controller: _breedController,
+                      hintText: '품종을 입력하세요',
+                    ),
+                    const SizedBox(height: 16),
 
-              // 생년월일 필드
-              _buildDateField(),
-              const SizedBox(height: 16),
+                    // 생년월일 필드
+                    _buildDateField(),
+                    const SizedBox(height: 16),
 
-              // 성별 필드
-              _buildGenderField(),
-              const SizedBox(height: 16),
+                    // 성별 필드
+                    _buildGenderField(),
+                    const SizedBox(height: 16),
 
-              // 몸무게 필드
-              _buildTextField(
-                label: '몸무게 (kg)',
-                controller: _weightController,
-                hintText: '몸무게를 입력하세요',
-                keyboardType: TextInputType.number,
-                validator: (value) {
-                  if (value != null && value.isNotEmpty) {
-                    final weight = double.tryParse(value);
-                    if (weight == null || weight <= 0) {
-                      return '올바른 몸무게를 입력해주세요';
-                    }
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
+                    // 몸무게 필드
+                    _buildTextField(
+                      label: '몸무게 (kg)',
+                      controller: _weightController,
+                      hintText: '몸무게를 입력하세요',
+                      keyboardType: TextInputType.number,
+                      validator: (value) {
+                        if (value != null && value.isNotEmpty) {
+                          final weight = double.tryParse(value);
+                          if (weight == null || weight <= 0) {
+                            return '올바른 몸무게를 입력해주세요';
+                          }
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 16),
 
-              // 중성화 여부 필드
-              _buildNeuteredField(),
-              const SizedBox(height: 16),
+                    // 중성화 여부 필드
+                    _buildNeuteredField(),
+                    const SizedBox(height: 16),
 
-              // 프로필 사진 선택 필드
-              _buildImagePickerField(),
-              const SizedBox(height: 16),
+                    // 프로필 사진 선택 필드
+                    _buildImagePickerField(),
+                    const SizedBox(height: 16),
 
-              // 이미지 미리보기
-              if (_selectedImage != null)
-                _buildImagePreview(_selectedImage!.path),
+                    // 이미지 미리보기
+                    if (_selectedImage != null)
+                      _buildImagePreview(_selectedImage!.path),
 
-              const SizedBox(height: 32),
+                    const SizedBox(height: 32),
 
                     // 등록하기 버튼
                     SizedBox(
@@ -364,20 +364,20 @@ class _AddPetScreenState extends State<AddPetScreen> {
                         ),
                         child: _isLoading
                             ? const SizedBox(
-                                height: 20,
-                                width: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                                ),
-                              )
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                          ),
+                        )
                             : const Text(
-                                '등록하기',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
+                          '등록하기',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                       ),
                     ),
                   ],
