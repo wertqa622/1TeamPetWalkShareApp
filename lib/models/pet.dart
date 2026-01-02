@@ -7,6 +7,10 @@ class Pet {
   final int age;
   final String? imageUrl;
   final String createdAt;
+  final DateTime? dateOfBirth;
+  final String? gender; // '수컷' or '암컷'
+  final double? weight; // kg
+  final bool isNeutered;
 
   Pet({
     required this.id,
@@ -17,6 +21,10 @@ class Pet {
     required this.age,
     this.imageUrl,
     required this.createdAt,
+    this.dateOfBirth,
+    this.gender,
+    this.weight,
+    this.isNeutered = false,
   });
 
   Map<String, dynamic> toJson() {
@@ -29,6 +37,10 @@ class Pet {
       'age': age,
       'imageUrl': imageUrl,
       'createdAt': createdAt,
+      'dateOfBirth': dateOfBirth?.toIso8601String(),
+      'gender': gender,
+      'weight': weight,
+      'isNeutered': isNeutered,
     };
   }
 
@@ -42,6 +54,49 @@ class Pet {
       age: json['age'] as int,
       imageUrl: json['imageUrl'] as String?,
       createdAt: json['createdAt'] as String,
+      dateOfBirth: json['dateOfBirth'] != null
+          ? DateTime.parse(json['dateOfBirth'] as String)
+          : null,
+      gender: json['gender'] as String?,
+      weight: json['weight'] != null ? (json['weight'] as num).toDouble() : null,
+      isNeutered: json['isNeutered'] as bool? ?? false,
+    );
+  }
+
+  // Firestore용 변환 (Firestore는 DateTime을 Timestamp로 저장)
+  Map<String, dynamic> toFirestore() {
+    return {
+      'id': id,
+      'userId': userId,
+      'name': name,
+      'species': species,
+      'breed': breed,
+      'age': age,
+      'imageUrl': imageUrl,
+      'createdAt': createdAt,
+      'dateOfBirth': dateOfBirth?.toIso8601String(),
+      'gender': gender,
+      'weight': weight,
+      'isNeutered': isNeutered,
+    };
+  }
+
+  factory Pet.fromFirestore(Map<String, dynamic> json) {
+    return Pet(
+      id: json['id'] as String,
+      userId: json['userId'] as String,
+      name: json['name'] as String,
+      species: json['species'] as String,
+      breed: json['breed'] as String,
+      age: json['age'] as int,
+      imageUrl: json['imageUrl'] as String?,
+      createdAt: json['createdAt'] as String,
+      dateOfBirth: json['dateOfBirth'] != null
+          ? DateTime.parse(json['dateOfBirth'] as String)
+          : null,
+      gender: json['gender'] as String?,
+      weight: json['weight'] != null ? (json['weight'] as num).toDouble() : null,
+      isNeutered: json['isNeutered'] as bool? ?? false,
     );
   }
 }

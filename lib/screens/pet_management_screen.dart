@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/pet.dart';
+import '../services/pet_storage_service.dart';
+import 'add_pet_screen.dart';
 
 class PetManagementScreen extends StatefulWidget {
   final String userId;
@@ -22,28 +24,32 @@ class _PetManagementScreenState extends State<PetManagementScreen> {
     _loadPets();
   }
 
-  void _loadPets() {
-    // TODO: 실제 데이터 로드 구현
-    setState(() {
-      _pets = [];
-    });
+  Future<void> _loadPets() async {
+    try {
+      final pets = await PetStorageService.getPets(widget.userId);
+      setState(() {
+        _pets = pets;
+      });
+    } catch (e) {
+      setState(() {
+        _pets = [];
+      });
+    }
   }
 
-  void _addPet() {
-    // TODO: 반려동물 추가 기능 구현
-    showDialog(
+  void _addPet() async {
+    final result = await showModalBottomSheet(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('반려동물 추가'),
-        content: const Text('반려동물 추가 기능을 구현해주세요.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('확인'),
-          ),
-        ],
-      ),
+      isScrollControlled: true,
+      isDismissible: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => AddPetScreen(userId: widget.userId),
     );
+
+    // 반려동물이 추가되면 목록 새로고침
+    if (result == true) {
+      _loadPets();
+    }
   }
 
   @override
@@ -129,5 +135,6 @@ class _PetManagementScreenState extends State<PetManagementScreen> {
     );
   }
 }
+
 
 
