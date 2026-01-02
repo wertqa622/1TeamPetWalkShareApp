@@ -1,5 +1,10 @@
 import 'package:flutter/material.dart';
 import '../models/pet.dart';
+<<<<<<< HEAD
+=======
+import '../services/pet_storage_service.dart';
+import 'add_pet_screen.dart';
+>>>>>>> 773bdf40970e0a49ac658aa7c2583ae758645030
 
 class PetManagementScreen extends StatefulWidget {
   final String userId;
@@ -22,6 +27,7 @@ class _PetManagementScreenState extends State<PetManagementScreen> {
     _loadPets();
   }
 
+<<<<<<< HEAD
   void _loadPets() {
     // TODO: 실제 데이터 로드 구현
     setState(() {
@@ -44,6 +50,34 @@ class _PetManagementScreenState extends State<PetManagementScreen> {
         ],
       ),
     );
+=======
+  Future<void> _loadPets() async {
+    try {
+      final pets = await PetStorageService.getPets(widget.userId);
+      setState(() {
+        _pets = pets;
+      });
+    } catch (e) {
+      setState(() {
+        _pets = [];
+      });
+    }
+  }
+
+  void _addPet() async {
+    final result = await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      isDismissible: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => AddPetScreen(userId: widget.userId),
+    );
+
+    // 반려동물이 추가되면 목록 새로고침
+    if (result == true) {
+      _loadPets();
+    }
+>>>>>>> 773bdf40970e0a49ac658aa7c2583ae758645030
   }
 
   @override
@@ -131,3 +165,7 @@ class _PetManagementScreenState extends State<PetManagementScreen> {
 }
 
 
+<<<<<<< HEAD
+=======
+
+>>>>>>> 773bdf40970e0a49ac658aa7c2583ae758645030
