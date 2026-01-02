@@ -6,7 +6,7 @@ import 'screens/social_feed_screen.dart';
 import 'screens/user_profile_screen.dart';
 import 'models/user.dart';
 import 'services/storage_service.dart';
-
+// main
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
   SystemChrome.setSystemUIOverlayStyle(
