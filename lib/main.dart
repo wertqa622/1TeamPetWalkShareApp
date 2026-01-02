@@ -1,14 +1,23 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart';
+import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
+
 import 'screens/pet_management_screen.dart';
 import 'screens/walk_tracking_screen.dart';
 import 'screens/social_feed_screen.dart';
 import 'screens/user_profile_screen.dart';
+import 'screens/login_screen.dart';
+
 import 'models/user.dart';
 import 'services/storage_service.dart';
-// main
-void main() {
+
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,
@@ -28,13 +37,25 @@ class MyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF2563EB), // blue-600
+          seedColor: const Color(0xFF2563EB),
           brightness: Brightness.light,
         ),
         useMaterial3: true,
         scaffoldBackgroundColor: const Color(0xFFF8FAFC),
       ),
-      home: const MainScreen(),
+      // firebase_auth.User? 타입을 명시하고 사용합니다.
+      home: StreamBuilder<firebase_auth.User?>(
+        stream: firebase_auth.FirebaseAuth.instance.authStateChanges(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (snapshot.hasData) {
+            return const MainScreen();
+          }
+          return const LoginScreen();
+        },
+      ),
     );
   }
 }
@@ -48,7 +69,7 @@ class MainScreen extends StatefulWidget {
 
 class _MainScreenState extends State<MainScreen> {
   int _currentIndex = 0;
-  User? _currentUser;
+  User? _currentUser; // 이건 models/user.dart의 User입니다 (정상)
   bool _isLoading = true;
 
   @override
@@ -81,35 +102,7 @@ class _MainScreenState extends State<MainScreen> {
   Widget build(BuildContext context) {
     if (_isLoading || _currentUser == null) {
       return Scaffold(
-        body: Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                Color(0xFFEFF6FF), // blue-50
-                Color(0xFFF3E8FF), // purple-50
-                Color(0xFFFCE7F3), // pink-50
-              ],
-            ),
-          ),
-          child: const Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                CircularProgressIndicator(),
-                SizedBox(height: 16),
-                Text(
-                  '로딩 중...',
-                  style: TextStyle(
-                    color: Color(0xFF4B5563),
-                    fontSize: 16,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
+        body: const Center(child: CircularProgressIndicator()),
       );
     }
 
@@ -127,120 +120,40 @@ class _MainScreenState extends State<MainScreen> {
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Color(0xFFEFF6FF), // blue-50
-              Color(0xFFF3E8FF), // purple-50
-              Color(0xFFFCE7F3), // pink-50
-            ],
+            colors: [Color(0xFFEFF6FF), Color(0xFFF3E8FF)],
           ),
         ),
         child: Column(
           children: [
             // 헤더
             Container(
+              padding: const EdgeInsets.only(top: 50, bottom: 20),
               decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    Color(0xFF2563EB), // blue-600
-                    Color(0xFF9333EA), // purple-600
-                  ],
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black12,
-                    blurRadius: 4,
-                    offset: Offset(0, 2),
-                  ),
-                ],
+                gradient: LinearGradient(colors: [Color(0xFF2563EB), Color(0xFF9333EA)]),
+                borderRadius: BorderRadius.only(bottomLeft: Radius.circular(20), bottomRight: Radius.circular(20)),
               ),
-              padding: const EdgeInsets.only(
-                top: 40,
-                bottom: 16,
-                left: 91.5,
-                right:91.5
-              ),
+              width: double.infinity,
               child: Column(
                 children: [
-                  const Text(
-                    '🐾 반려동물 산책 다이어리',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '${_currentUser!.nickname}님 환영합니다',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w300,
-                    ),
-                  ),
+                  const Text('🐾 반려동물 산책 다이어리', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+                  Text('${_currentUser!.nickname}님 환영합니다', style: const TextStyle(color: Colors.white70)),
                 ],
               ),
             ),
-            // 메인 콘텐츠
-            Expanded(
-              child: Container(
-                margin: const EdgeInsets.only(top: 8),
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.only(
-                    topLeft: Radius.circular(20),
-                    topRight: Radius.circular(20),
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black12,
-                      blurRadius: 8,
-                      offset: Offset(0, -2),
-                    ),
-                  ],
-                ),
-                child: screens[_currentIndex],
-              ),
-            ),
+            Expanded(child: screens[_currentIndex]),
           ],
         ),
       ),
-      bottomNavigationBar: Container(
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black12,
-              blurRadius: 4,
-              offset: Offset(0, -2),
-            ),
-          ],
-        ),
-        child: SafeArea(
-          child: BottomNavigationBar(
-            backgroundColor: Colors.transparent, // Container 색만 보이게
-            elevation: 0,
-            currentIndex: _currentIndex,
-            onTap: (index) {
-              setState(() {
-                _currentIndex = index;
-              });
-            },
-            type: BottomNavigationBarType.fixed,
-            selectedItemColor: const Color(0xFF2563EB),
-            unselectedItemColor: Colors.grey,
-            selectedFontSize: 12,
-            unselectedFontSize: 12,
-            items: const [
-              BottomNavigationBarItem(icon: Icon(Icons.home), label: '홈'),
-              BottomNavigationBarItem(icon: Icon(Icons.add_circle_outline), label: '산책'),
-              BottomNavigationBarItem(icon: Icon(Icons.favorite_outline), label: '피드'),
-              BottomNavigationBarItem(icon: Icon(Icons.person_outline), label: '프로필'),
-            ],
-          ),
-        ),
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: _currentIndex,
+        onTap: (index) => setState(() => _currentIndex = index),
+        type: BottomNavigationBarType.fixed,
+        items: const [
+          BottomNavigationBarItem(icon: Icon(Icons.home), label: '홈'),
+          BottomNavigationBarItem(icon: Icon(Icons.add_circle_outline), label: '산책'),
+          BottomNavigationBarItem(icon: Icon(Icons.favorite_outline), label: '피드'),
+          BottomNavigationBarItem(icon: Icon(Icons.person_outline), label: '프로필'),
+        ],
       ),
     );
   }
