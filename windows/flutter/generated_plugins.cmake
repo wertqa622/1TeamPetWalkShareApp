@@ -3,6 +3,12 @@
 #
 
 list(APPEND FLUTTER_PLUGIN_LIST
+<<<<<<< HEAD
+=======
+  cloud_firestore
+  file_selector_windows
+  firebase_core
+>>>>>>> 773bdf40970e0a49ac658aa7c2583ae758645030
 )
 
 list(APPEND FLUTTER_FFI_PLUGIN_LIST

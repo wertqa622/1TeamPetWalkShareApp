@@ -1,14 +1,32 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+<<<<<<< HEAD
+=======
+import 'package:flutter_localizations/flutter_localizations.dart';
+// import 'package:firebase_core/firebase_core.dart';
+// import 'firebase_options.dart'; // flutterfire configure로 생성 필요
+>>>>>>> 773bdf40970e0a49ac658aa7c2583ae758645030
 import 'screens/pet_management_screen.dart';
 import 'screens/walk_tracking_screen.dart';
 import 'screens/social_feed_screen.dart';
 import 'screens/user_profile_screen.dart';
 import 'models/user.dart';
 import 'services/storage_service.dart';
+<<<<<<< HEAD
 // main
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
+=======
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  
+  // Firebase 초기화 (Firebase 프로젝트 설정 후 주석 해제)
+  // await Firebase.initializeApp(
+  //   options: DefaultFirebaseOptions.currentPlatform,
+  // );
+  
+>>>>>>> 773bdf40970e0a49ac658aa7c2583ae758645030
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,
@@ -34,6 +52,19 @@ class MyApp extends StatelessWidget {
         useMaterial3: true,
         scaffoldBackgroundColor: const Color(0xFFF8FAFC),
       ),
+<<<<<<< HEAD
+=======
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: const [
+        Locale('ko', 'KR'),
+        Locale('en', 'US'),
+      ],
+      locale: const Locale('ko', 'KR'),
+>>>>>>> 773bdf40970e0a49ac658aa7c2583ae758645030
       home: const MainScreen(),
     );
   }
