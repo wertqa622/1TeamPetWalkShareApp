@@ -3,13 +3,16 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:image_picker/image_picker.dart';
 import '../models/pet.dart';
+import '../services/firestore_service.dart';
 
 class AddPetScreen extends StatefulWidget {
   final String userId;
+  final Pet? pet; // 수정 모드일 때 기존 Pet 데이터
 
   const AddPetScreen({
     super.key,
     required this.userId,
+    this.pet,
   });
 
   @override
@@ -28,6 +31,24 @@ class _AddPetScreenState extends State<AddPetScreen> {
   bool _isNeutered = false;
   bool _isLoading = false;
   XFile? _selectedImage;
+  String? _existingImageUrl; // 기존 이미지 URL 저장
+
+  bool get _isEditMode => widget.pet != null;
+
+  @override
+  void initState() {
+    super.initState();
+    if (_isEditMode && widget.pet != null) {
+      final pet = widget.pet!;
+      _nameController.text = pet.name;
+      _breedController.text = pet.breed;
+      _weightController.text = pet.weight?.toString() ?? '';
+      _selectedDate = pet.dateOfBirth;
+      _selectedGender = pet.gender;
+      _isNeutered = pet.isNeutered;
+      _existingImageUrl = pet.imageUrl;
+    }
+  }
 
   @override
   void dispose() {
@@ -86,7 +107,7 @@ class _AddPetScreenState extends State<AddPetScreen> {
                   _pickImage(ImageSource.camera);
                 },
               ),
-              if (_selectedImage != null)
+              if (_selectedImage != null || (_isEditMode && _existingImageUrl != null))
                 ListTile(
                   leading: const Icon(Icons.delete, color: Colors.red),
                   title: const Text('이미지 제거', style: TextStyle(color: Colors.red)),
@@ -94,6 +115,9 @@ class _AddPetScreenState extends State<AddPetScreen> {
                     Navigator.pop(context);
                     setState(() {
                       _selectedImage = null;
+                      if (_isEditMode) {
+                        _existingImageUrl = null;
+                      }
                     });
                   },
                 ),
@@ -177,12 +201,43 @@ class _AddPetScreenState extends State<AddPetScreen> {
       // 현재는 이미지 파일 경로만 저장 (추후 Firebase Storage 업로드 구현 필요)
       String? imageUrl;
       if (_selectedImage != null) {
+        // 새 이미지가 선택된 경우
         imageUrl = _selectedImage!.path;
         // TODO: Firebase Storage 업로드
         // imageUrl = await FirebaseStorageService.uploadImage(_selectedImage!);
+      } else if (_isEditMode) {
+        // 수정 모드이고 이미지가 변경되지 않은 경우 기존 이미지 URL 유지
+        imageUrl = _existingImageUrl;
       }
 
+      if (_isEditMode && widget.pet != null) {
+        // 수정 모드
+        final updateData = {
+          'name': _nameController.text.trim(),
+          'breed': _breedController.text.trim(),
+          'age': age,
+          'imageUrl': imageUrl,
+          'dateOfBirth': _selectedDate?.toIso8601String(),
+          'gender': _selectedGender,
+          'weight': weight,
+          'isNeutered': _isNeutered,
+        };
+
+        await FirestoreService.updatePet(widget.pet!.id, updateData);
+
+        if (mounted) {
+          Navigator.pop(context, true);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('반려동물 정보가 수정되었습니다.'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      } else {
+        // 추가 모드
         final pet = Pet(
+          id: '', // FirestoreService에서 자동 생성
           userId: widget.userId,
           name: _nameController.text.trim(),
           species: '강아지', // 기본값, 추후 수정 가능
@@ -196,8 +251,10 @@ class _AddPetScreenState extends State<AddPetScreen> {
           isNeutered: _isNeutered,
         );
 
+        await FirestoreService.addPet(pet);
 
         if (mounted) {
+          Navigator.pop(context, true);
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('반려동물이 등록되었습니다.'),
@@ -205,10 +262,12 @@ class _AddPetScreenState extends State<AddPetScreen> {
             ),
           );
         }
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
+            content: Text(_isEditMode ? '수정 실패: $e' : '등록 실패: $e'),
             backgroundColor: Colors.red,
           ),
         );
@@ -252,8 +311,11 @@ class _AddPetScreenState extends State<AddPetScreen> {
                   icon: const Icon(Icons.close, color: Colors.black),
                   onPressed: () => Navigator.pop(context),
                 ),
+                Expanded(
                   child: Text(
+                    _isEditMode ? '반려동물 수정' : '반려동물 등록',
                     textAlign: TextAlign.center,
+                    style: const TextStyle(
                       color: Colors.black,
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
@@ -336,10 +398,13 @@ class _AddPetScreenState extends State<AddPetScreen> {
 
                     // 이미지 미리보기
                     if (_selectedImage != null)
+                      _buildImagePreview(_selectedImage!.path)
+                    else if (_isEditMode && _existingImageUrl != null && _existingImageUrl!.isNotEmpty)
+                      _buildImagePreview(_existingImageUrl!),
 
                     const SizedBox(height: 32),
 
-                    // 등록하기 버튼
+                    // 등록하기/수정하기 버튼
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
@@ -361,6 +426,9 @@ class _AddPetScreenState extends State<AddPetScreen> {
                             valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                           ),
                         )
+                            : Text(
+                          _isEditMode ? '수정하기' : '등록하기',
+                          style: const TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
                           ),
@@ -555,6 +623,8 @@ class _AddPetScreenState extends State<AddPetScreen> {
   }
 
   Widget _buildImagePickerField() {
+    final hasImage = _selectedImage != null || (_isEditMode && _existingImageUrl != null && _existingImageUrl!.isNotEmpty);
+    
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -579,18 +649,18 @@ class _AddPetScreenState extends State<AddPetScreen> {
             child: Row(
               children: [
                 Icon(
-                  _selectedImage != null ? Icons.check_circle : Icons.add_photo_alternate,
-                  color: _selectedImage != null ? Colors.green : Colors.grey[600],
+                  hasImage ? Icons.check_circle : Icons.add_photo_alternate,
+                  color: hasImage ? Colors.green : Colors.grey[600],
                   size: 20,
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                    _selectedImage != null
+                    hasImage
                         ? '이미지가 선택되었습니다'
                         : '이미지를 선택하세요',
                     style: TextStyle(
-                      color: _selectedImage != null
+                      color: hasImage
                           ? Colors.black87
                           : Colors.grey[600],
                       fontSize: 16,
@@ -611,6 +681,9 @@ class _AddPetScreenState extends State<AddPetScreen> {
   }
 
   Widget _buildImagePreview(String imagePath) {
+    final bool isNetworkImage = imagePath.startsWith('http');
+    final bool isLocalFile = !isNetworkImage && imagePath.isNotEmpty;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -624,6 +697,25 @@ class _AddPetScreenState extends State<AddPetScreen> {
           ),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(8),
+            child: isNetworkImage
+                ? Image.network(
+                    imagePath,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) {
+                      return Container(
+                        color: Colors.grey[200],
+                        child: const Center(
+                          child: Icon(
+                            Icons.broken_image,
+                            size: 48,
+                            color: Colors.grey,
+                          ),
+                        ),
+                      );
+                    },
+                  )
+                : isLocalFile
+                    ? Image.file(
                         File(imagePath),
                         fit: BoxFit.cover,
                         errorBuilder: (context, error, stackTrace) {
@@ -638,6 +730,16 @@ class _AddPetScreenState extends State<AddPetScreen> {
                             ),
                           );
                         },
+                      )
+                    : Container(
+                        color: Colors.grey[200],
+                        child: const Center(
+                          child: Icon(
+                            Icons.broken_image,
+                            size: 48,
+                            color: Colors.grey,
+                          ),
+                        ),
                       ),
           ),
         ),

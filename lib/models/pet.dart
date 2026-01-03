@@ -5,7 +5,7 @@ class Pet {
   final String species;
   final String breed;
   final int age;
-  final String? imageUrl;
+  final String? imageUrl; // Firebase Storage URL
   final String createdAt;
   final DateTime? dateOfBirth;
   final String? gender; // '수컷' or '암컷'

@@ -25,6 +25,7 @@ class _LoginScreenState extends State<LoginScreen> {
         email: _emailController.text.trim(),
         password: _passwordController.text.trim(),
       );
+      // 로그인 성공 시 AuthWrapper가 자동으로 MainScreen으로 이동
     } on FirebaseAuthException catch (e) {
       if(mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('로그인 실패: ${e.code}')));
     } finally {
@@ -71,7 +72,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
       // 4. 파이어베이스 로그인
       await FirebaseAuth.instance.signInWithCredential(credential);
-
+      // 로그인 성공 시 AuthWrapper가 자동으로 MainScreen으로 이동
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
