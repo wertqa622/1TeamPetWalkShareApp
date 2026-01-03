@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 import 'firebase_options.dart';
+import 'screens/login_screen.dart';
 import 'screens/pet_management_screen.dart';
 import 'screens/walk_tracking_screen.dart';
 import 'screens/social_feed_screen.dart';
@@ -76,7 +78,9 @@ class _MainScreenState extends State<MainScreen> {
 
   Future<void> _loadUser() async {
     try {
+      // 로컬 저장소에서 사용자 정보 가져오기 (없으면 생성)
       final user = await StorageService.getOrCreateDefaultUser();
+      
       setState(() {
         _currentUser = user;
         _isLoading = false;
