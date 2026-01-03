@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart';
 import 'screens/pet_management_screen.dart';
 import 'screens/walk_tracking_screen.dart';
 import 'screens/social_feed_screen.dart';
@@ -7,8 +10,12 @@ import 'screens/user_profile_screen.dart';
 import 'models/user.dart';
 import 'services/storage_service.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+   await Firebase.initializeApp(
+     options: DefaultFirebaseOptions.currentPlatform,
+  );
+
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,
@@ -34,6 +41,16 @@ class MyApp extends StatelessWidget {
         useMaterial3: true,
         scaffoldBackgroundColor: const Color(0xFFF8FAFC),
       ),
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: const [
+        Locale('ko', 'KR'),
+        Locale('en', 'US'),
+      ],
+      locale: const Locale('ko', 'KR'),
       home: const MainScreen(),
     );
   }
@@ -156,10 +173,10 @@ class _MainScreenState extends State<MainScreen> {
                 ],
               ),
               padding: const EdgeInsets.only(
-                top: 40,
-                bottom: 16,
-                left: 91.5,
-                right:91.5
+                  top: 40,
+                  bottom: 16,
+                  left: 91.5,
+                  right:91.5
               ),
               child: Column(
                 children: [

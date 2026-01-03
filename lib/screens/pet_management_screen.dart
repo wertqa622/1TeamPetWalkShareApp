@@ -2,8 +2,6 @@ import 'package:flutter/material.dart';
 import '../models/pet.dart';
 import '../services/pet_storage_service.dart';
 import 'add_pet_screen.dart';
-import 'dart:io';
-import 'package:intl/intl.dart';
 
 class PetManagementScreen extends StatefulWidget {
   final String userId;
