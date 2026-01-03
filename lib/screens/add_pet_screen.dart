@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:image_picker/image_picker.dart';
 import '../models/pet.dart';
-import '../services/pet_storage_service.dart';
 
 class AddPetScreen extends StatefulWidget {
   final String userId;
@@ -178,43 +177,38 @@ class _AddPetScreenState extends State<AddPetScreen> {
       // 현재는 이미지 파일 경로만 저장 (추후 Firebase Storage 업로드 구현 필요)
       String? imageUrl;
       if (_selectedImage != null) {
-        // 임시로 파일 경로 저장 (실제로는 Firebase Storage에 업로드 후 URL 사용)
         imageUrl = _selectedImage!.path;
         // TODO: Firebase Storage 업로드
         // imageUrl = await FirebaseStorageService.uploadImage(_selectedImage!);
       }
 
-      final pet = Pet(
-        id: '', // PetStorageService에서 자동 생성
-        userId: widget.userId,
-        name: _nameController.text.trim(),
-        species: '강아지', // 기본값, 추후 수정 가능
-        breed: _breedController.text.trim(),
-        age: age,
-        imageUrl: imageUrl,
-        createdAt: DateTime.now().toIso8601String(),
-        dateOfBirth: _selectedDate,
-        gender: _selectedGender,
-        weight: weight,
-        isNeutered: _isNeutered,
-      );
-
-      await PetStorageService.addPet(pet);
-
-      if (mounted) {
-        Navigator.pop(context, true); // 성공 시 true 반환
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('반려동물이 등록되었습니다.'),
-            backgroundColor: Colors.green,
-          ),
+        final pet = Pet(
+          userId: widget.userId,
+          name: _nameController.text.trim(),
+          species: '강아지', // 기본값, 추후 수정 가능
+          breed: _breedController.text.trim(),
+          age: age,
+          imageUrl: imageUrl,
+          createdAt: DateTime.now().toIso8601String(),
+          dateOfBirth: _selectedDate,
+          gender: _selectedGender,
+          weight: weight,
+          isNeutered: _isNeutered,
         );
-      }
+
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('반려동물이 등록되었습니다.'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('등록 실패: $e'),
             backgroundColor: Colors.red,
           ),
         );
@@ -258,11 +252,8 @@ class _AddPetScreenState extends State<AddPetScreen> {
                   icon: const Icon(Icons.close, color: Colors.black),
                   onPressed: () => Navigator.pop(context),
                 ),
-                const Expanded(
                   child: Text(
-                    '반려동물 등록',
                     textAlign: TextAlign.center,
-                    style: TextStyle(
                       color: Colors.black,
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
@@ -345,7 +336,6 @@ class _AddPetScreenState extends State<AddPetScreen> {
 
                     // 이미지 미리보기
                     if (_selectedImage != null)
-                      _buildImagePreview(_selectedImage!.path),
 
                     const SizedBox(height: 32),
 
@@ -371,9 +361,6 @@ class _AddPetScreenState extends State<AddPetScreen> {
                             valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                           ),
                         )
-                            : const Text(
-                          '등록하기',
-                          style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
                           ),
@@ -637,22 +624,21 @@ class _AddPetScreenState extends State<AddPetScreen> {
           ),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(8),
-            child: Image.file(
-              File(imagePath),
-              fit: BoxFit.cover,
-              errorBuilder: (context, error, stackTrace) {
-                return Container(
-                  color: Colors.grey[200],
-                  child: const Center(
-                    child: Icon(
-                      Icons.broken_image,
-                      size: 48,
-                      color: Colors.grey,
-                    ),
-                  ),
-                );
-              },
-            ),
+                        File(imagePath),
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) {
+                          return Container(
+                            color: Colors.grey[200],
+                            child: const Center(
+                              child: Icon(
+                                Icons.broken_image,
+                                size: 48,
+                                color: Colors.grey,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
           ),
         ),
       ],

@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 import '../models/pet.dart';
-import '../services/pet_storage_service.dart';
-import 'add_pet_screen.dart';
 
 class PetManagementScreen extends StatefulWidget {
   final String userId;
@@ -24,32 +22,28 @@ class _PetManagementScreenState extends State<PetManagementScreen> {
     _loadPets();
   }
 
-  Future<void> _loadPets() async {
-    try {
-      final pets = await PetStorageService.getPets(widget.userId);
-      setState(() {
-        _pets = pets;
-      });
-    } catch (e) {
-      setState(() {
-        _pets = [];
-      });
-    }
+  void _loadPets() {
+    // TODO: 실제 데이터 로드 구현
+    setState(() {
+      _pets = [];
+    });
   }
 
-  void _addPet() async {
-    final result = await showModalBottomSheet(
+  void _addPet() {
+    // TODO: 반려동물 추가 기능 구현
+    showDialog(
       context: context,
-      isScrollControlled: true,
-      isDismissible: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => AddPetScreen(userId: widget.userId),
+      builder: (context) => AlertDialog(
+        title: const Text('반려동물 추가'),
+        content: const Text('반려동물 추가 기능을 구현해주세요.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('확인'),
+          ),
+        ],
+      ),
     );
-
-    // 반려동물이 추가되면 목록 새로고침
-    if (result == true) {
-      _loadPets();
-    }
   }
 
   @override
@@ -108,20 +102,20 @@ class _PetManagementScreenState extends State<PetManagementScreen> {
                     )
                   else
                     ..._pets.map((pet) => Card(
-                      margin: const EdgeInsets.only(bottom: 12),
-                      child: ListTile(
-                        leading: CircleAvatar(
-                          backgroundColor: Colors.blue[100],
-                          child: const Icon(Icons.pets),
-                        ),
-                        title: Text(pet.name),
-                        subtitle: Text('${pet.species} • ${pet.breed}'),
-                        trailing: const Icon(Icons.chevron_right),
-                        onTap: () {
-                          // TODO: 반려동물 상세 정보
-                        },
-                      ),
-                    )),
+                          margin: const EdgeInsets.only(bottom: 12),
+                          child: ListTile(
+                            leading: CircleAvatar(
+                              backgroundColor: Colors.blue[100],
+                              child: const Icon(Icons.pets),
+                            ),
+                            title: Text(pet.name),
+                            subtitle: Text('${pet.species} • ${pet.breed}'),
+                            trailing: const Icon(Icons.chevron_right),
+                            onTap: () {
+                              // TODO: 반려동물 상세 정보
+                            },
+                          ),
+                        )),
                 ],
               ),
             ),
@@ -135,6 +129,5 @@ class _PetManagementScreenState extends State<PetManagementScreen> {
     );
   }
 }
-
 
 
