@@ -45,5 +45,12 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+<<<<<<< HEAD
+=======
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>반려동물 프로필 사진을 선택하기 위해 갤러리 접근 권한이 필요합니다.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>반려동물 프로필 사진을 촬영하기 위해 카메라 접근 권한이 필요합니다.</string>
+>>>>>>> 773bdf40970e0a49ac658aa7c2583ae758645030
 </dict>
 </plist>
