@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import '../models/user.dart';
-import '../services/storage_service.dart';
+import '../../models/user.dart';
+import '../../services/storage_service.dart';
 
 class UserProfileScreen extends StatefulWidget {
   final User user;
@@ -172,4 +172,5 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     );
   }
 }
+
 

@@ -1,6 +1,4 @@
 import 'package:flutter/material.dart';
-import 'dart:io';
-import 'package:intl/intl.dart';
 import '../models/pet.dart';
 import '../services/pet_storage_service.dart';
 import 'add_pet_screen.dart';
@@ -52,99 +50,6 @@ class _PetManagementScreenState extends State<PetManagementScreen> {
     if (result == true) {
       _loadPets();
     }
-  }
-
-  void _showPetDetail(Pet pet) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        height: MediaQuery.of(context).size.height * 0.7, // 화면의 70% 높이
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.only(
-            topLeft: Radius.circular(20),
-            topRight: Radius.circular(20),
-          ),
-        ),
-        child: Column(
-          children: [
-            // 상단 핸들 바 (디자인 요소)
-            Container(
-              margin: const EdgeInsets.only(top: 12),
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: Colors.grey[300],
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            const SizedBox(height: 24),
-            // 1. 프로필 사진 (FR-202)
-            CircleAvatar(
-              radius: 60,
-              backgroundColor: const Color(0xFFEFF6FF), // blue-50
-              backgroundImage: pet.imageUrl != null && pet.imageUrl!.isNotEmpty
-                  ? FileImage(File(pet.imageUrl!))
-                  : null,
-              child: pet.imageUrl == null || pet.imageUrl!.isEmpty
-                  ? const Icon(Icons.pets, size: 60, color: Color(0xFF2563EB))
-                  : null,
-            ),
-            const SizedBox(height: 16),
-            // 2. 이름 및 품종
-            Text(
-              pet.name,
-              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-            ),
-            Text(
-              '${pet.species} • ${pet.breed}',
-              style: TextStyle(fontSize: 16, color: Colors.grey[600]),
-            ),
-            const SizedBox(height: 24),
-            const Divider(indent: 20, endIndent: 20),
-            // 3. 상세 정보 목록 (FR-202 필수 데이터들)
-            Expanded(
-              child: ListView(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                children: [
-                  _buildDetailRow(
-                      Icons.cake,
-                      '생년월일',
-                      pet.dateOfBirth != null ? DateFormat('yyyy년 MM월 dd일').format(pet.dateOfBirth!) : '정보 없음'
-                  ),
-                  _buildDetailRow(Icons.wc, '성별', pet.gender ?? '정보 없음'),
-                  _buildDetailRow(Icons.monitor_weight, '몸무게', pet.weight != null ? '${pet.weight} kg' : '정보 없음'),
-                  _buildDetailRow(Icons.health_and_safety, '중성화 여부', pet.isNeutered ? '완료' : '미완료'),
-                  const SizedBox(height: 20),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-// 상세 항목 한 줄을 그리는 헬퍼 위젯
-  Widget _buildDetailRow(IconData icon, String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 12.0),
-      child: Row(
-        children: [
-          Icon(icon, color: const Color(0xFF2563EB), size: 24),
-          const SizedBox(width: 16),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(label, style: const TextStyle(fontSize: 12, color: Colors.grey)),
-              Text(value, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
-            ],
-          ),
-        ],
-      ),
-    );
   }
 
   @override
@@ -214,7 +119,6 @@ class _PetManagementScreenState extends State<PetManagementScreen> {
                         trailing: const Icon(Icons.chevron_right),
                         onTap: () {
                           // TODO: 반려동물 상세 정보
-                          _showPetDetail(pet);
                         },
                       ),
                     )),
