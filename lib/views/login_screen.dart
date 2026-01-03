@@ -77,7 +77,7 @@ class _LoginScreenState extends State<LoginScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('구글 로그인 실패: $e')),
       );
-      print('에러 상세: $e'); // 콘솔에서 에러 확인용
+      debugPrint('에러 상세: $e'); // 콘솔에서 에러 확인용
     } finally {
       if (mounted) setState(() { _isGoogleLoading = false; });
     }

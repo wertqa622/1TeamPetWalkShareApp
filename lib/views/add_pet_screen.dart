@@ -561,7 +561,7 @@ class _AddPetScreenState extends State<AddPetScreen> {
               _isNeutered = value;
             });
           },
-          activeColor: const Color(0xFF2563EB),
+          activeThumbColor: const Color(0xFF2563EB),
         ),
       ],
     );

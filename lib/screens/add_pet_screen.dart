@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:image_picker/image_picker.dart';
 import '../models/pet.dart';
+import '../services/pet_storage_service.dart';
 
 class AddPetScreen extends StatefulWidget {
   final String userId;
@@ -183,6 +184,7 @@ class _AddPetScreenState extends State<AddPetScreen> {
       }
 
         final pet = Pet(
+          id: DateTime.now().millisecondsSinceEpoch.toString(),
           userId: widget.userId,
           name: _nameController.text.trim(),
           species: '강아지', // 기본값, 추후 수정 가능
@@ -195,7 +197,9 @@ class _AddPetScreenState extends State<AddPetScreen> {
           weight: weight,
           isNeutered: _isNeutered,
         );
-
+        
+        // PetStorageService를 사용하여 저장
+        await PetStorageService.addPet(pet);
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -204,11 +208,13 @@ class _AddPetScreenState extends State<AddPetScreen> {
               backgroundColor: Colors.green,
             ),
           );
+          Navigator.pop(context, true); // 성공 시 true 반환
         }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
+            content: Text('오류가 발생했습니다: $e'),
             backgroundColor: Colors.red,
           ),
         );
@@ -252,8 +258,11 @@ class _AddPetScreenState extends State<AddPetScreen> {
                   icon: const Icon(Icons.close, color: Colors.black),
                   onPressed: () => Navigator.pop(context),
                 ),
+                const Expanded(
                   child: Text(
+                    '반려동물 추가',
                     textAlign: TextAlign.center,
+                    style: TextStyle(
                       color: Colors.black,
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
@@ -336,7 +345,7 @@ class _AddPetScreenState extends State<AddPetScreen> {
 
                     // 이미지 미리보기
                     if (_selectedImage != null)
-
+                      _buildImagePreview(_selectedImage!.path),
                     const SizedBox(height: 32),
 
                     // 등록하기 버튼
@@ -354,17 +363,20 @@ class _AddPetScreenState extends State<AddPetScreen> {
                         ),
                         child: _isLoading
                             ? const SizedBox(
-                          height: 20,
-                          width: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                          ),
-                        )
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
+                                height: 20,
+                                width: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                ),
+                              )
+                            : const Text(
+                                '등록하기',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
                       ),
                     ),
                   ],
@@ -548,7 +560,7 @@ class _AddPetScreenState extends State<AddPetScreen> {
               _isNeutered = value;
             });
           },
-          activeColor: const Color(0xFF2563EB),
+          activeThumbColor: const Color(0xFF2563EB),
         ),
       ],
     );
@@ -624,21 +636,22 @@ class _AddPetScreenState extends State<AddPetScreen> {
           ),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(8),
-                        File(imagePath),
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) {
-                          return Container(
-                            color: Colors.grey[200],
-                            child: const Center(
-                              child: Icon(
-                                Icons.broken_image,
-                                size: 48,
-                                color: Colors.grey,
-                              ),
-                            ),
-                          );
-                        },
-                      ),
+            child: Image.file(
+              File(imagePath),
+              fit: BoxFit.cover,
+              errorBuilder: (context, error, stackTrace) {
+                return Container(
+                  color: Colors.grey[200],
+                  child: const Center(
+                    child: Icon(
+                      Icons.broken_image,
+                      size: 48,
+                      color: Colors.grey,
+                    ),
+                  ),
+                );
+              },
+            ),
           ),
         ),
       ],
