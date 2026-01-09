@@ -1,3 +1,5 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 class Walk {
   final String id;
   final String userId;
@@ -8,6 +10,8 @@ class Walk {
   final int? duration; // 초 단위
   final String? route;
   final String? notes;
+  final String? mood;
+  final String? imageUrl;
   final String createdAt;
 
   Walk({
@@ -20,6 +24,8 @@ class Walk {
     this.duration,
     this.route,
     this.notes,
+    this.mood,
+    this.imageUrl,
     required this.createdAt,
   });
 
@@ -34,24 +40,33 @@ class Walk {
       'duration': duration,
       'route': route,
       'notes': notes,
+      'mood': mood,
+      'imageUrl': imageUrl,
       'createdAt': createdAt,
     };
   }
 
   factory Walk.fromJson(Map<String, dynamic> json) {
+
+    DateTime parseDateTime(dynamic value) {
+      if (value is Timestamp) return value.toDate();
+      if (value is String) return DateTime.tryParse(value) ?? DateTime.now();
+      return DateTime.now(); // 데이터가 null일 때 현재 시간으로 방어
+    }
+
     return Walk(
-      id: json['id'] as String,
-      userId: json['userId'] as String,
-      petId: json['petId'] as String,
-      startTime: DateTime.parse(json['startTime'] as String),
-      endTime: json['endTime'] != null
-          ? DateTime.parse(json['endTime'] as String)
-          : null,
-      distance: json['distance'] as double?,
+      id: json['id'] as String? ?? '',
+      userId: json['userId'] as String? ?? '',
+      petId: json['petId'] as String? ?? '',
+      startTime: parseDateTime(json['startTime']),
+      endTime: json['endTime'] != null ? parseDateTime(json['endTime']) : null,
+      distance: (json['distance'] as num?)?.toDouble(),
       duration: json['duration'] as int?,
       route: json['route'] as String?,
       notes: json['notes'] as String?,
-      createdAt: json['createdAt'] as String,
+      mood: json['mood'] as String?,
+      imageUrl: json['imageUrl'] as String?,
+      createdAt: json['createdAt']?.toString() ?? '',
     );
   }
 }
