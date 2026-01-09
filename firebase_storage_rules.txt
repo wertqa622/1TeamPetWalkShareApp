@@ -1,0 +1,40 @@
+Firebase Storage 규칙 (인증 없이 업로드 허용)
+==========================================
+
+로그인 없이도 이미지 업로드가 가능하도록 설정합니다.
+
+옵션 1: 모든 사용자 읽기/쓰기 허용 (개발/테스트용)
+주의: 보안상 위험하므로 개발/테스트 환경에서만 사용하세요.
+
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /{allPaths=**} {
+      allow read, write: if true;
+    }
+  }
+}
+
+==========================================
+
+옵션 2: pets/ 경로만 인증 없이 허용 (권장)
+pets/ 경로만 인증 없이 허용하고, 다른 경로는 차단
+
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // pets/ 경로는 인증 없이 읽기/쓰기 허용
+    match /pets/{userId}/{petId}/{fileName} {
+      allow read, write: if true;
+    }
+    
+    // 다른 모든 경로는 차단
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
+
+Firebase Console → Storage → 규칙 탭에서 위 규칙 중 하나를 선택하여 붙여넣고 "게시" 버튼을 클릭하세요.
+
+옵션 2를 권장합니다 (더 안전함).

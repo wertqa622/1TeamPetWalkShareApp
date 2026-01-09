@@ -1,6 +1,7 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import '../models/pet.dart';
-import '../services/pet_storage_service.dart';
+import '../services/firestore_service.dart';
 import 'add_pet_screen.dart';
 
 class PetManagementScreen extends StatefulWidget {
@@ -24,17 +25,20 @@ class _PetManagementScreenState extends State<PetManagementScreen> {
     _loadPets();
   }
 
-  Future<void> _loadPets() async {
-    try {
-      final pets = await PetStorageService.getPets(widget.userId);
-      setState(() {
-        _pets = pets;
-      });
-    } catch (e) {
-      setState(() {
-        _pets = [];
-      });
-    }
+  void _loadPets() {
+    // Firestore Stream을 사용하여 실시간 업데이트
+    FirestoreService.getPetsByUserId(widget.userId).listen((pets) {
+      if (mounted) {
+        setState(() {
+          // 대표 반려동물을 맨 위로 정렬
+          _pets = pets..sort((a, b) {
+            if (a.isRepresentative && !b.isRepresentative) return -1;
+            if (!a.isRepresentative && b.isRepresentative) return 1;
+            return 0;
+          });
+        });
+      }
+    });
   }
 
   void _addPet() async {
@@ -46,103 +50,22 @@ class _PetManagementScreenState extends State<PetManagementScreen> {
       builder: (context) => AddPetScreen(userId: widget.userId),
     );
 
-    // 반려동물이 추가되면 목록 새로고침
-    if (result == true) {
-      _loadPets();
-    }
+    // Stream을 사용하므로 자동으로 업데이트됨 (새로고침 불필요)
   }
 
-  void _showPetDetail(Pet pet) {
-    showModalBottomSheet(
+  void _editPet(Pet pet) async {
+    final result = await showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      isDismissible: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        height: MediaQuery.of(context).size.height * 0.7, // 화면의 70% 높이
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.only(
-            topLeft: Radius.circular(20),
-            topRight: Radius.circular(20),
-          ),
-        ),
-        child: Column(
-          children: [
-            // 상단 핸들 바 (디자인 요소)
-            Container(
-              margin: const EdgeInsets.only(top: 12),
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: Colors.grey[300],
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            const SizedBox(height: 24),
-            // 1. 프로필 사진 (FR-202)
-            CircleAvatar(
-              radius: 60,
-              backgroundColor: const Color(0xFFEFF6FF), // blue-50
-              backgroundImage: pet.imageUrl != null && pet.imageUrl!.isNotEmpty
-                  ? FileImage(File(pet.imageUrl!))
-                  : null,
-              child: pet.imageUrl == null || pet.imageUrl!.isEmpty
-                  ? const Icon(Icons.pets, size: 60, color: Color(0xFF2563EB))
-                  : null,
-            ),
-            const SizedBox(height: 16),
-            // 2. 이름 및 품종
-            Text(
-              pet.name,
-              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-            ),
-            Text(
-              '${pet.species} • ${pet.breed}',
-              style: TextStyle(fontSize: 16, color: Colors.grey[600]),
-            ),
-            const SizedBox(height: 24),
-            const Divider(indent: 20, endIndent: 20),
-            // 3. 상세 정보 목록 (FR-202 필수 데이터들)
-            Expanded(
-              child: ListView(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                children: [
-                  _buildDetailRow(
-                      Icons.cake,
-                      '생년월일',
-                      pet.dateOfBirth != null ? DateFormat('yyyy년 MM월 dd일').format(pet.dateOfBirth!) : '정보 없음'
-                  ),
-                  _buildDetailRow(Icons.wc, '성별', pet.gender ?? '정보 없음'),
-                  _buildDetailRow(Icons.monitor_weight, '몸무게', pet.weight != null ? '${pet.weight} kg' : '정보 없음'),
-                  _buildDetailRow(Icons.health_and_safety, '중성화 여부', pet.isNeutered ? '완료' : '미완료'),
-                  const SizedBox(height: 20),
-                ],
-              ),
-            ),
-          ],
-        ),
+      builder: (context) => AddPetScreen(
+        userId: widget.userId,
+        pet: pet,
       ),
     );
-  }
 
-// 상세 항목 한 줄을 그리는 헬퍼 위젯
-  Widget _buildDetailRow(IconData icon, String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 12.0),
-      child: Row(
-        children: [
-          Icon(icon, color: const Color(0xFF2563EB), size: 24),
-          const SizedBox(width: 16),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(label, style: const TextStyle(fontSize: 12, color: Colors.grey)),
-              Text(value, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
-            ],
-          ),
-        ],
-      ),
-    );
+    // Stream을 사용하므로 자동으로 업데이트됨 (새로고침 불필요)
   }
 
   @override
@@ -150,25 +73,14 @@ class _PetManagementScreenState extends State<PetManagementScreen> {
     return Scaffold(
       body: CustomScrollView(
         slivers: [
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    '반려동물 관리',
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
                   if (_pets.isEmpty)
-                    Center(
+            SliverFillRemaining(
+              hasScrollBody: false,
+              child: Center(
                       child: Padding(
                         padding: const EdgeInsets.all(32.0),
                         child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Icon(
                               Icons.pets,
@@ -196,27 +108,23 @@ class _PetManagementScreenState extends State<PetManagementScreen> {
                               ),
                             ),
                           ],
+                  ),
                         ),
                       ),
                     )
                   else
-                    ..._pets.map((pet) => Card(
-                      margin: const EdgeInsets.only(bottom: 12),
-                      child: ListTile(
-                        leading: CircleAvatar(
-                          backgroundColor: Colors.blue[100],
-                          child: const Icon(Icons.pets),
-                        ),
-                        title: Text(pet.name),
-                        subtitle: Text('${pet.species} • ${pet.breed}'),
-                        trailing: const Icon(Icons.chevron_right),
-                        onTap: () {
-                          // TODO: 반려동물 상세 정보
-                          _showPetDetail(pet);
-                        },
-                      ),
-                    )),
-                ],
+            SliverPadding(
+              padding: const EdgeInsets.all(16.0),
+              sliver: SliverList(
+                delegate: SliverChildBuilderDelegate(
+                  (context, index) {
+                    final pet = _pets[index];
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 16.0),
+                      child: _buildPetCard(pet),
+                    );
+                  },
+                  childCount: _pets.length,
               ),
             ),
           ),
@@ -228,7 +136,282 @@ class _PetManagementScreenState extends State<PetManagementScreen> {
       ),
     );
   }
+
+  Widget _buildPetCard(Pet pet) {
+    final bool hasImage = pet.imageUrl != null && pet.imageUrl!.isNotEmpty;
+    final bool isLocalFile = hasImage && !pet.imageUrl!.startsWith('http');
+
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(
+          color: Colors.blue.shade300,
+          width: 1,
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 20.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // 상단: 프로필 이미지, 이름, 별, 수정/삭제 버튼
+            Row(
+              children: [
+                // 원형 프로필 이미지
+                ClipOval(
+                  child: Container(
+                    width: 60,
+                    height: 60,
+                    color: Colors.teal.shade700,
+                    child: hasImage && isLocalFile
+                        ? Image.file(
+                            File(pet.imageUrl!),
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) {
+                              return _buildPlaceholderAvatar();
+                            },
+                          )
+                        : hasImage && !isLocalFile
+                            ? Image.network(
+                                pet.imageUrl!,
+                                fit: BoxFit.cover,
+                                errorBuilder: (context, error, stackTrace) {
+                                  return _buildPlaceholderAvatar();
+                                },
+                              )
+                            : _buildPlaceholderAvatar(),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                // 이름, 별, 품종
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Text(
+                            pet.name,
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          if (pet.isRepresentative) ...[
+                            const SizedBox(width: 6),
+                            Icon(
+                              Icons.star,
+                              size: 20,
+                              color: Colors.blue.shade700,
+                            ),
+                          ],
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        pet.breed.isNotEmpty ? pet.breed : pet.species,
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.grey[600],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                // 수정/삭제 버튼
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      icon: Icon(
+                        Icons.edit_outlined,
+                        color: Colors.grey[700],
+                      ),
+                      onPressed: () {
+                        _editPet(pet);
+                      },
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                    ),
+                    const SizedBox(width: 8),
+                    IconButton(
+                      icon: Icon(
+                        Icons.delete_outline,
+                        color: Colors.red.shade400,
+                      ),
+                      onPressed: () {
+                        _showDeleteDialog(pet);
+                      },
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            // 하단: 나이, 몸무게, 성별, 중성화 여부
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '나이: ${pet.age}살',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.grey[700],
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        '몸무게: ${pet.weight != null ? "${pet.weight}kg" : "-"}',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.grey[700],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '성별: ${pet.gender ?? "-"}',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.grey[700],
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        '중성화: ${pet.isNeutered ? "O" : "X"}',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.grey[700],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            // 대표 반려동물 설정 버튼 (대표 반려동물이 아닐 때만 표시)
+            if (!pet.isRepresentative) ...[
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton(
+                  onPressed: () {
+                    _setRepresentativePet(pet);
+                  },
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    side: BorderSide(
+                      color: Colors.grey[400]!,
+                      width: 1,
+                    ),
+                  ),
+                  child: const Text(
+                    '대표 반려동물로 설정',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.black87,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPlaceholderAvatar() {
+    return Container(
+      color: Colors.teal.shade700,
+      child: Center(
+        child: Icon(
+          Icons.pets,
+          size: 30,
+          color: Colors.white,
+        ),
+      ),
+    );
+  }
+
+  void _setRepresentativePet(Pet pet) async {
+    try {
+      await FirestoreService.setRepresentativePet(widget.userId, pet.id);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('${pet.name}을(를) 대표 반려동물로 설정했습니다'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('대표 반려동물 설정 실패: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  void _showDeleteDialog(Pet pet) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('반려동물 삭제'),
+        content: Text('${pet.name}을(를) 삭제하시겠습니까?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('취소'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              try {
+                await FirestoreService.deletePet(pet.id);
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('반려동물이 삭제되었습니다'),
+                    ),
+                  );
+                }
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('삭제 실패: $e'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              }
+            },
+            style: TextButton.styleFrom(
+              foregroundColor: Colors.red,
+            ),
+            child: const Text('삭제'),
+          ),
+        ],
+      ),
+    );
+  }
 }
-
-
-

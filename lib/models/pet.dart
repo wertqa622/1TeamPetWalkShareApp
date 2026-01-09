@@ -5,12 +5,13 @@ class Pet {
   final String species;
   final String breed;
   final int age;
-  final String? imageUrl;
+  final String? imageUrl; // Firebase Storage URL
   final String createdAt;
   final DateTime? dateOfBirth;
   final String? gender; // '수컷' or '암컷'
   final double? weight; // kg
   final bool isNeutered;
+  final bool isRepresentative; // 대표 반려동물 여부
 
   Pet({
     required this.id,
@@ -25,6 +26,7 @@ class Pet {
     this.gender,
     this.weight,
     this.isNeutered = false,
+    this.isRepresentative = false,
   });
 
   Map<String, dynamic> toJson() {
@@ -41,6 +43,7 @@ class Pet {
       'gender': gender,
       'weight': weight,
       'isNeutered': isNeutered,
+      'isRepresentative': isRepresentative,
     };
   }
 
@@ -59,7 +62,8 @@ class Pet {
           : null,
       gender: json['gender'] as String?,
       weight: json['weight'] != null ? (json['weight'] as num).toDouble() : null,
-      isNeutered: json['isNeutered'] as bool? ?? false,
+      isNeutered: json['isNeutered'] is bool ? json['isNeutered'] as bool : false,
+      isRepresentative: json['isRepresentative'] is bool ? json['isRepresentative'] as bool : false,
     );
   }
 
@@ -78,6 +82,7 @@ class Pet {
       'gender': gender,
       'weight': weight,
       'isNeutered': isNeutered,
+      'isRepresentative': isRepresentative,
     };
   }
 
@@ -96,7 +101,8 @@ class Pet {
           : null,
       gender: json['gender'] as String?,
       weight: json['weight'] != null ? (json['weight'] as num).toDouble() : null,
-      isNeutered: json['isNeutered'] as bool? ?? false,
+      isNeutered: json['isNeutered'] is bool ? json['isNeutered'] as bool : false,
+      isRepresentative: json['isRepresentative'] is bool ? json['isRepresentative'] as bool : false,
     );
   }
 }
