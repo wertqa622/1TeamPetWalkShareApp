@@ -210,7 +210,7 @@ class _PetManagementScreenState extends State<PetManagementScreen> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        pet.breed.isNotEmpty ? pet.breed : pet.species,
+                        pet.breed,
                         style: TextStyle(
                           fontSize: 14,
                           color: Colors.grey[600],
@@ -259,7 +259,7 @@ class _PetManagementScreenState extends State<PetManagementScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        '나이: ${pet.age}살',
+                        '나이: ${pet.calculateAge()}살',
                         style: TextStyle(
                           fontSize: 14,
                           color: Colors.grey[700],
