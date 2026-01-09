@@ -1,29 +1,28 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
+import 'package:firebase_auth/firebase_auth.dart';
 import 'firebase_options.dart';
+import 'services/backgroundservice.dart';
+
+// 화면들 import
 import 'screens/login_screen.dart';
 import 'screens/pet_management_screen.dart';
 import 'screens/walk_tracking_screen.dart';
 import 'screens/social_feed_screen.dart';
 import 'screens/user_profile_screen.dart';
-import 'models/user.dart';
-import 'services/storage_service.dart';
+import 'models/user.dart' as model; // User 모델 이름 충돌 방지
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-   await Firebase.initializeApp(
-     options: DefaultFirebaseOptions.currentPlatform,
+
+  // 1. Firebase 초기화
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
   );
 
-  SystemChrome.setSystemUIOverlayStyle(
-    const SystemUiOverlayStyle(
-      statusBarColor: Colors.transparent,
-      statusBarIconBrightness: Brightness.light,
-    ),
-  );
+  // 2. 백그라운드 서비스 초기화 (위치 추적용)
+  await initializeService();
+
   runApp(const MyApp());
 }
 
@@ -34,30 +33,47 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: '반려동물 산책 다이어리',
-      debugShowCheckedModeBanner: false,
+      debugShowCheckedModeBanner: false, // 오른쪽 위 디버그 띠 제거
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF2563EB), // blue-600
-          brightness: Brightness.light,
-        ),
         useMaterial3: true,
+        colorSchemeSeed: const Color(0xFF2563EB),
         scaffoldBackgroundColor: const Color(0xFFF8FAFC),
       ),
-      localizationsDelegates: const [
-        GlobalMaterialLocalizations.delegate,
-        GlobalWidgetsLocalizations.delegate,
-        GlobalCupertinoLocalizations.delegate,
-      ],
-      supportedLocales: const [
-        Locale('ko', 'KR'),
-        Locale('en', 'US'),
-      ],
-      locale: const Locale('ko', 'KR'),
-      home: const MainScreen(),
+      // 앱이 켜지면 AuthWrapper가 로그인 여부를 판단합니다.
+      home: const AuthWrapper(),
     );
   }
 }
 
+// ---------------------------------------------------------
+// [AuthWrapper] 로그인 상태에 따라 화면을 바꿔주는 신호등 역할
+// ---------------------------------------------------------
+class AuthWrapper extends StatelessWidget {
+  const AuthWrapper({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<User?>(
+      stream: FirebaseAuth.instance.authStateChanges(),
+      builder: (context, snapshot) {
+        // 1. 연결 상태 대기 중
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(body: Center(child: CircularProgressIndicator()));
+        }
+        // 2. 로그인 되어 있음 -> 탭 화면(MainScreen) 보여줌
+        if (snapshot.hasData) {
+          return const MainScreen();
+        }
+        // 3. 로그인 안 됨 -> 로그인 화면(LoginScreen) 보여줌
+        return const LoginScreen();
+      },
+    );
+  }
+}
+
+// ---------------------------------------------------------
+// [MainScreen] 로그인 성공 후 보여질 탭 메뉴 화면 (별도 파일 안 만듦)
+// ---------------------------------------------------------
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
 
@@ -67,200 +83,57 @@ class MainScreen extends StatefulWidget {
 
 class _MainScreenState extends State<MainScreen> {
   int _currentIndex = 0;
-  User? _currentUser;
-  bool _isLoading = true;
+  final String _uid = FirebaseAuth.instance.currentUser!.uid;
+
+  // 탭별 화면 리스트
+  late final List<Widget> _screens;
 
   @override
   void initState() {
     super.initState();
-    _loadUser();
-  }
-
-  Future<void> _loadUser() async {
-    try {
-      // 로컬 저장소에서 사용자 정보 가져오기 (없으면 생성)
-      final user = await StorageService.getOrCreateDefaultUser();
-      
-      setState(() {
-        _currentUser = user;
-        _isLoading = false;
-      });
-    } catch (e) {
-      setState(() {
-        _isLoading = false;
-      });
-    }
-  }
-
-  void _onUserUpdate(User user) {
-    setState(() {
-      _currentUser = user;
-    });
+    // 각 화면에 로그인한 유저 ID를 넘겨줍니다.
+    _screens = [
+      PetManagementScreen(userId: _uid),     // 0: 홈 (반려동물 관리)
+      WalkTrackingScreen(userId: _uid),      // 1: 산책
+      // 소셜 피드와 프로필 화면은 User 객체가 필요한데,
+      // 우선 userId만 넘겨서 동작하도록 하거나 임시로 연결합니다.
+      // (기능 구현이 완료되면 해당 Screen으로 교체하세요)
+      SocialFeedScreen(currentUser: model.User(id: _uid, nickname: '사용자', bio: '', locationPublic: true, followers: 0, following: 0, createdAt: '')), // 2: 피드 (임시 데이터)
+      UserProfileScreen(
+          user: model.User(id: _uid, nickname: '내 정보', bio: '', locationPublic: true, followers: 0, following: 0, createdAt: ''),
+          onUserUpdate: (u) {}
+      ), // 3: 프로필 (임시 데이터)
+    ];
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading || _currentUser == null) {
-      return Scaffold(
-        body: Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                Color(0xFFEFF6FF), // blue-50
-                Color(0xFFF3E8FF), // purple-50
-                Color(0xFFFCE7F3), // pink-50
-              ],
-            ),
-          ),
-          child: const Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                CircularProgressIndicator(),
-                SizedBox(height: 16),
-                Text(
-                  '로딩 중...',
-                  style: TextStyle(
-                    color: Color(0xFF4B5563),
-                    fontSize: 16,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
-    }
-
-    final screens = [
-      PetManagementScreen(userId: _currentUser!.id),
-      WalkTrackingScreen(userId: _currentUser!.id),
-      SocialFeedScreen(currentUser: _currentUser!),
-      UserProfileScreen(
-        user: _currentUser!,
-        onUserUpdate: _onUserUpdate,
-      ),
-    ];
-
     return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Color(0xFFEFF6FF), // blue-50
-              Color(0xFFF3E8FF), // purple-50
-              Color(0xFFFCE7F3), // pink-50
-            ],
-          ),
-        ),
-        child: Column(
-          children: [
-            // 헤더
-            Container(
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    Color(0xFF2563EB), // blue-600
-                    Color(0xFF9333EA), // purple-600
-                  ],
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black12,
-                    blurRadius: 4,
-                    offset: Offset(0, 2),
-                  ),
-                ],
-              ),
-              padding: const EdgeInsets.only(
-                  top: 40,
-                  bottom: 16,
-                  left: 91.5,
-                  right:91.5
-              ),
-              child: Column(
-                children: [
-                  const Text(
-                    '🐾 반려동물 산책 다이어리',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '${_currentUser!.nickname}님 환영합니다',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w300,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            // 메인 콘텐츠
-            Expanded(
-              child: Container(
-                margin: const EdgeInsets.only(top: 8),
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.only(
-                    topLeft: Radius.circular(20),
-                    topRight: Radius.circular(20),
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black12,
-                      blurRadius: 8,
-                      offset: Offset(0, -2),
-                    ),
-                  ],
-                ),
-                child: screens[_currentIndex],
-              ),
-            ),
-          ],
-        ),
+      // IndexedStack: 탭을 이동해도 입력하던 내용이 사라지지 않게 유지
+      body: IndexedStack(
+        index: _currentIndex,
+        children: _screens,
       ),
       bottomNavigationBar: Container(
         decoration: const BoxDecoration(
-          color: Colors.white,
           boxShadow: [
-            BoxShadow(
-              color: Colors.black12,
-              blurRadius: 4,
-              offset: Offset(0, -2),
-            ),
+            BoxShadow(color: Colors.black12, blurRadius: 4, offset: Offset(0, -1))
           ],
         ),
-        child: SafeArea(
-          child: BottomNavigationBar(
-            backgroundColor: Colors.transparent, // Container 색만 보이게
-            elevation: 0,
-            currentIndex: _currentIndex,
-            onTap: (index) {
-              setState(() {
-                _currentIndex = index;
-              });
-            },
-            type: BottomNavigationBarType.fixed,
-            selectedItemColor: const Color(0xFF2563EB),
-            unselectedItemColor: Colors.grey,
-            selectedFontSize: 12,
-            unselectedFontSize: 12,
-            items: const [
-              BottomNavigationBarItem(icon: Icon(Icons.home), label: '홈'),
-              BottomNavigationBarItem(icon: Icon(Icons.add_circle_outline), label: '산책'),
-              BottomNavigationBarItem(icon: Icon(Icons.favorite_outline), label: '피드'),
-              BottomNavigationBarItem(icon: Icon(Icons.person_outline), label: '프로필'),
-            ],
-          ),
+        child: BottomNavigationBar(
+          currentIndex: _currentIndex,
+          onTap: (index) => setState(() => _currentIndex = index),
+          type: BottomNavigationBarType.fixed,
+          backgroundColor: Colors.white,
+          selectedItemColor: const Color(0xFF2563EB),
+          unselectedItemColor: Colors.grey,
+          showUnselectedLabels: true,
+          items: const [
+            BottomNavigationBarItem(icon: Icon(Icons.pets), label: '홈'),
+            BottomNavigationBarItem(icon: Icon(Icons.directions_walk), label: '산책'),
+            BottomNavigationBarItem(icon: Icon(Icons.public), label: '피드'),
+            BottomNavigationBarItem(icon: Icon(Icons.person), label: '프로필'),
+          ],
         ),
       ),
     );
