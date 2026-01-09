@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
 
@@ -16,8 +17,8 @@ class FirebaseStorageService {
       final String fileName = 'profile_${DateTime.now().millisecondsSinceEpoch}.jpg';
       final String path = 'pets/$userId/$petId/$fileName';
 
-      print('이미지 업로드 시작: $path');
-      print('사용자 ID: $userId');
+      debugPrint('이미지 업로드 시작: $path');
+      debugPrint('사용자 ID: $userId');
       
       // 파일 참조 생성
       final Reference ref = _storage.ref().child(path);
@@ -29,10 +30,10 @@ class FirebaseStorageService {
       }
       
       final fileSize = await file.length();
-      print('파일 크기: ${(fileSize / 1024 / 1024).toStringAsFixed(2)} MB');
+      debugPrint('파일 크기: ${(fileSize / 1024 / 1024).toStringAsFixed(2)} MB');
       
       if (fileSize > 10 * 1024 * 1024) { // 10MB 초과 시 경고
-        print('경고: 파일 크기가 10MB를 초과합니다. 업로드가 느릴 수 있습니다.');
+        debugPrint('경고: 파일 크기가 10MB를 초과합니다. 업로드가 느릴 수 있습니다.');
       }
 
       // 파일 업로드
@@ -47,33 +48,33 @@ class FirebaseStorageService {
       // 업로드 진행 상황 모니터링
       uploadTask.snapshotEvents.listen((TaskSnapshot snapshot) {
         final progress = snapshot.bytesTransferred / snapshot.totalBytes;
-        print('업로드 진행률: ${(progress * 100).toStringAsFixed(2)}%');
+        debugPrint('업로드 진행률: ${(progress * 100).toStringAsFixed(2)}%');
       });
 
       // 업로드 완료 대기 및 다운로드 URL 가져오기 (타임아웃: 60초로 증가)
-      print('업로드 대기 중...');
+      debugPrint('업로드 대기 중...');
       final TaskSnapshot snapshot = await uploadTask.timeout(
         const Duration(seconds: 60),
         onTimeout: () {
-          print('업로드 타임아웃 발생');
+          debugPrint('업로드 타임아웃 발생');
           uploadTask.cancel();
           throw Exception('이미지 업로드 타임아웃: 60초 내에 완료되지 않았습니다. 네트워크 연결을 확인해주세요.');
         },
       );
       
-      print('업로드 완료, 다운로드 URL 가져오는 중...');
+      debugPrint('업로드 완료, 다운로드 URL 가져오는 중...');
       final String downloadUrl = await snapshot.ref.getDownloadURL().timeout(
         const Duration(seconds: 15),
         onTimeout: () {
-          print('다운로드 URL 가져오기 타임아웃');
+          debugPrint('다운로드 URL 가져오기 타임아웃');
           throw Exception('다운로드 URL 가져오기 타임아웃');
         },
       );
 
-      print('이미지 업로드 성공: $downloadUrl');
+      debugPrint('이미지 업로드 성공: $downloadUrl');
       return downloadUrl;
     } catch (e) {
-      print('이미지 업로드 에러 상세: $e');
+      debugPrint('이미지 업로드 에러 상세: $e');
       if (e.toString().contains('permission') || e.toString().contains('unauthorized')) {
         throw Exception('이미지 업로드 권한이 없습니다. Firebase Storage 보안 규칙을 확인해주세요.');
       } else if (e.toString().contains('network') || e.toString().contains('timeout')) {
@@ -92,7 +93,7 @@ class FirebaseStorageService {
       await ref.delete();
     } catch (e) {
       // 이미지가 없거나 삭제 실패해도 계속 진행
-      print('이미지 삭제 실패 (무시됨): $e');
+      debugPrint('이미지 삭제 실패 (무시됨): $e');
     }
   }
 
