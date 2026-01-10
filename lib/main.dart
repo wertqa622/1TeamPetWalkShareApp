@@ -4,6 +4,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'firebase_options.dart';
 import 'services/backgroundservice.dart';
 
@@ -105,34 +106,153 @@ class MainScreen extends StatefulWidget {
 class _MainScreenState extends State<MainScreen> {
   int _currentIndex = 0;
   final String _uid = FirebaseAuth.instance.currentUser!.uid;
+  
+  // 사용자 데이터
+  model.User? _currentUser;
+  bool _isLoadingUser = true;
 
   // 탭별 화면 리스트
-  late final List<Widget> _screens;
+  List<Widget>? _screens;
 
   @override
   void initState() {
     super.initState();
-    // 각 화면에 로그인한 유저 ID를 넘겨줍니다.
-    _screens = [
-      PetManagementScreen(userId: _uid),     // 0: 홈 (반려동물 관리)
-      WalkTrackingScreen(userId: _uid),      // 1: 산책
-      // 소셜 피드와 프로필 화면은 User 객체가 필요한데,
-      // 우선 userId만 넘겨서 동작하도록 하거나 임시로 연결합니다.
-      SocialFeedScreen(currentUser: model.User(id: _uid, nickname: '사용자', bio: '', locationPublic: true, followers: 0, following: 0, createdAt: '')), // 2: 피드
-      UserProfileScreen(
-          user: model.User(id: _uid, nickname: '내 정보', bio: '', locationPublic: true, followers: 0, following: 0, createdAt: ''),
-          onUserUpdate: (u) {}
-      ), // 3: 프로필
-    ];
+    _loadUserData();
+  }
+
+  Future<void> _loadUserData() async {
+    try {
+      final currentUserEmail = FirebaseAuth.instance.currentUser?.email ?? '';
+      
+      // Firestore에서 사용자 데이터 로드
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(_uid)
+          .get();
+
+      model.User user;
+      if (userDoc.exists) {
+        final data = userDoc.data()!;
+        
+        // createdAt 필드 처리
+        String createdAtStr;
+        if (data['createdAt'] != null) {
+          if (data['createdAt'] is Timestamp) {
+            createdAtStr = (data['createdAt'] as Timestamp).toDate().toIso8601String();
+          } else {
+            createdAtStr = data['createdAt'].toString();
+          }
+        } else {
+          createdAtStr = DateTime.now().toIso8601String();
+        }
+
+        user = model.User(
+          id: _uid,
+          email: data['email'] ?? currentUserEmail,
+          nickname: data['nickname'] ?? '사용자',
+          bio: data['bio'] ?? '',
+          locationPublic: data['locationPublic'] ?? true,
+          followers: (data['followers'] ?? 0) as int,
+          following: (data['following'] ?? 0) as int,
+          createdAt: createdAtStr,
+        );
+      } else {
+        // 사용자 문서가 없으면 생성
+        user = model.User(
+          id: _uid,
+          email: currentUserEmail,
+          nickname: '사용자',
+          bio: '',
+          locationPublic: true,
+          followers: 0,
+          following: 0,
+          createdAt: DateTime.now().toIso8601String(),
+        );
+        
+        // Firestore에 사용자 문서 생성
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(_uid)
+            .set(user.toJson());
+      }
+
+      // email 필드가 없으면 업데이트
+      if (userDoc.exists && (userDoc.data()?['email'] == null || userDoc.data()?['email'] == '')) {
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(_uid)
+            .update({'email': currentUserEmail});
+        user = user.copyWith(email: currentUserEmail);
+      }
+
+      if (mounted) {
+        setState(() {
+          _currentUser = user;
+          _isLoadingUser = false;
+          
+          // 화면 리스트 생성
+          _screens = [
+            PetManagementScreen(userId: _uid),
+            WalkTrackingScreen(userId: _uid),
+            SocialFeedScreen(currentUser: user),
+            UserProfileScreen(
+              user: user,
+              onUserUpdate: (updatedUser) {
+                setState(() {
+                  _currentUser = updatedUser;
+                });
+              },
+            ),
+          ];
+        });
+      }
+    } catch (e) {
+      debugPrint('사용자 데이터 로드 실패: $e');
+      if (mounted) {
+        final currentUserEmail = FirebaseAuth.instance.currentUser?.email ?? '';
+        setState(() {
+          _currentUser = model.User(
+            id: _uid,
+            email: currentUserEmail,
+            nickname: '사용자',
+            bio: '',
+            locationPublic: true,
+            followers: 0,
+            following: 0,
+            createdAt: DateTime.now().toIso8601String(),
+          );
+          _isLoadingUser = false;
+          _screens = [
+            PetManagementScreen(userId: _uid),
+            WalkTrackingScreen(userId: _uid),
+            SocialFeedScreen(currentUser: _currentUser!),
+            UserProfileScreen(
+              user: _currentUser!,
+              onUserUpdate: (u) {
+                setState(() {
+                  _currentUser = u;
+                });
+              },
+            ),
+          ];
+        });
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoadingUser || _screens == null) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
     return Scaffold(
       // IndexedStack: 탭을 이동해도 입력하던 내용이 사라지지 않게 유지
       body: IndexedStack(
         index: _currentIndex,
-        children: _screens,
+        children: _screens!,
       ),
       bottomNavigationBar: Container(
         decoration: const BoxDecoration(

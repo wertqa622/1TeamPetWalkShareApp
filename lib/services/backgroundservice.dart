@@ -15,7 +15,7 @@ Future<void> initializeService() async {
     androidConfiguration: AndroidConfiguration(
       onStart: onStart,
       autoStart: false,
-      isForegroundMode: true,
+      isForegroundMode: false, // Android 12+ 알림 오류 방지를 위해 임시로 false로 변경
       notificationChannelId: 'walk_track_channel',
       initialNotificationTitle: '산책 트래킹 작동 중',
       initialNotificationContent: '시간과 경로를 실시간으로 기록하고 있습니다.',
