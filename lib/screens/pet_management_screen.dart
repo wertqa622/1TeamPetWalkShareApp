@@ -369,9 +369,7 @@ class _PetManagementScreenState extends State<PetManagementScreen> {
         );
       }
     }
-  }
-
-  void _showDeleteDialog(Pet pet) {
+  }  void _showDeleteDialog(Pet pet) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
