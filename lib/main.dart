@@ -10,20 +10,16 @@ import 'services/backgroundservice.dart';
 // 화면들 import
 import 'screens/login_screen.dart';
 import 'screens/pet_management_screen.dart';
-import 'screens/walk_tracking_screen.dart';
+import 'screens/walk_home_tap.dart';
 import 'screens/social_feed_screen.dart';
 import 'screens/user_profile_screen.dart';
 import 'models/user.dart' as model; // User 모델 이름 충돌 방지
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
-  // 1. Firebase 초기화
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
-
-  // 2. 백그라운드 서비스 초기화 (위치 추적용)
+  // 서비스 초기화만 진행하고, 실제 'start'는 권한 승인 후 UI에서 하도록 설계하는 것이 안전합니다.
   await initializeService();
 
   runApp(const MyApp());
@@ -115,7 +111,7 @@ class _MainScreenState extends State<MainScreen> {
     // 각 화면에 로그인한 유저 ID를 넘겨줍니다.
     _screens = [
       PetManagementScreen(userId: _uid),     // 0: 홈 (반려동물 관리)
-      WalkTrackingScreen(userId: _uid),      // 1: 산책
+      WalkHomeTab(userId: _uid),      // 1: 산책
       // 소셜 피드와 프로필 화면은 User 객체가 필요한데,
       // 우선 userId만 넘겨서 동작하도록 하거나 임시로 연결합니다.
       SocialFeedScreen(currentUser: model.User(id: _uid, nickname: '사용자', bio: '', locationPublic: true, followers: 0, following: 0, createdAt: '')), // 2: 피드

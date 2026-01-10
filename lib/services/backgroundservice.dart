@@ -1,101 +1,86 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:ui';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_background_service/flutter_background_service.dart';
+import 'package:flutter_background_service_android/flutter_background_service_android.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:math' as math;
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import '../firebase_options.dart';
+
+const String walkNotificationChannelId = 'walk_secure_channel_v6';
+const int walkNotificationId = 999;
 
 Future<void> initializeService() async {
   final service = FlutterBackgroundService();
+  final FlutterLocalNotificationsPlugin notificationsPlugin = FlutterLocalNotificationsPlugin();
+
+  const AndroidNotificationChannel channel = AndroidNotificationChannel(
+    walkNotificationChannelId,
+    '반려동물 산책 서비스',
+    importance: Importance.low,
+  );
+
+  await notificationsPlugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()?.createNotificationChannel(channel);
 
   await service.configure(
     androidConfiguration: AndroidConfiguration(
       onStart: onStart,
       autoStart: false,
       isForegroundMode: true,
-      notificationChannelId: 'walk_track_channel',
-      initialNotificationTitle: '산책 트래킹 작동 중',
-      initialNotificationContent: '시간과 경로를 실시간으로 기록하고 있습니다.',
+      notificationChannelId: walkNotificationChannelId,
+      initialNotificationTitle: '산책 준비 중',
+      initialNotificationContent: 'GPS 연결 확인 중...',
+      foregroundServiceNotificationId: walkNotificationId,
     ),
     iosConfiguration: IosConfiguration(
       autoStart: false,
       onForeground: onStart,
+      // [수정]: FutureOr<bool> 타입을 맞추기 위해 async와 return true 추가
+      onBackground: (ServiceInstance service) async {
+        onStart(service);
+        return true;
+      },
     ),
   );
 }
 
 @pragma('vm:entry-point')
 void onStart(ServiceInstance service) async {
+  DartPluginRegistrant.ensureInitialized();
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp();
+  if (service is AndroidServiceInstance) service.setAsForegroundService();
+
+  try { await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform); } catch (e) {}
 
   final SharedPreferences prefs = await SharedPreferences.getInstance();
   double totalDistance = 0.0;
   List<Map<String, double>> pathList = [];
   DateTime startTime = DateTime.now();
-  Position? lastRecordedPos;
 
-  // 종료 신호 리스너
-  service.on('stopService').listen((event) {
-    service.stopSelf();
-  });
-
-  // [개선]: 1초 타이머를 위치 수신과 무관하게 즉시 가동시켜 5초 딜레이 현상을 방지함
-  Timer.periodic(const Duration(seconds: 1), (timer) {
-    service.invoke('updateData', {
-      "lat": lastRecordedPos?.latitude ?? 0.0,
-      "lng": lastRecordedPos?.longitude ?? 0.0,
-      "distance": totalDistance,
-      "duration": DateTime.now().difference(startTime).inSeconds,
-      "path": jsonEncode(pathList),
-    });
-  });
-
-  // [개선]: 경로 추적(30초 주기)은 비동기로 별도 가동
   Timer.periodic(const Duration(seconds: 30), (timer) async {
     try {
-      Position currentPos = await Geolocator.getCurrentPosition(
-          desiredAccuracy: LocationAccuracy.high
-      );
+      Position currentPos = await Geolocator.getCurrentPosition(locationSettings: const LocationSettings(accuracy: LocationAccuracy.high));
 
       if (pathList.isNotEmpty) {
-        totalDistance += _calculateDistance(
-          pathList.last['lat']!,
-          pathList.last['lng']!,
-          currentPos.latitude,
-          currentPos.longitude,
-        );
+        double dist = Geolocator.distanceBetween(pathList.last['lat']!, pathList.last['lng']!, currentPos.latitude, currentPos.longitude);
+        totalDistance += (dist / 1000);
       }
+      pathList.add({'lat': currentPos.latitude, 'lng': currentPos.longitude});
 
-      lastRecordedPos = currentPos;
-      pathList.add({
-        'lat': currentPos.latitude,
-        'lng': currentPos.longitude
+      // [수정]: invoke는 void를 반환하므로 await 제거
+      service.invoke('updateData', {
+        "lat": currentPos.latitude, "lng": currentPos.longitude,
+        "distance": totalDistance, "path": jsonEncode(pathList),
+        "duration": DateTime.now().difference(startTime).inSeconds,
       });
 
-      final String? userId = prefs.getString('current_user_id');
-      if (userId != null) {
-        FirebaseFirestore.instance.collection('users').doc(userId).update({
-          'latitude': currentPos.latitude,
-          'longitude': currentPos.longitude,
-          'lastUpdated': FieldValue.serverTimestamp(),
-        });
+      if (service is AndroidServiceInstance) {
+        service.setForegroundNotificationInfo(title: "산책 중 🐕", content: "거리: ${totalDistance.toStringAsFixed(2)}km");
       }
-
-      prefs.setDouble('temp_distance', totalDistance);
-      prefs.setString('temp_path', jsonEncode(pathList));
-    } catch (e) {
-      debugPrint("GPS 트래킹 에러: $e");
-    }
+    } catch (e) { debugPrint("에러: $e"); }
   });
-}
-
-double _calculateDistance(double lat1, double lon1, double lat2, double lon2) {
-  double p = 0.017453292519943295;
-  double a = 0.5 - math.cos((lat2 - lat1) * p) / 2 +
-      math.cos(lat1 * p) * math.cos(lat2 * p) * (1 - math.cos((lon2 - lon1) * p)) / 2;
-  return 12742 * math.asin(math.sqrt(a));
 }
