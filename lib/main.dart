@@ -113,16 +113,17 @@ class _MainScreenState extends State<MainScreen> {
   void initState() {
     super.initState();
     // 각 화면에 로그인한 유저 ID를 넘겨줍니다.
+    final currentUserEmail = FirebaseAuth.instance.currentUser?.email ?? '';
     _screens = [
       PetManagementScreen(userId: _uid),     // 0: 홈 (반려동물 관리)
       WalkTrackingScreen(userId: _uid),      // 1: 산책
       // 소셜 피드와 프로필 화면은 User 객체가 필요한데,
       // 우선 userId만 넘겨서 동작하도록 하거나 임시로 연결합니다.
-      SocialFeedScreen(currentUser: model.User(id: _uid, nickname: '사용자', bio: '', locationPublic: true, followers: 0, following: 0, createdAt: '')), // 2: 피드
+      SocialFeedScreen(currentUser: model.User(id: _uid, email: currentUserEmail, nickname: '사용자', bio: '', locationPublic: true, followers: 0, following: 0, createdAt: DateTime.now().toIso8601String())), // 2: 피드 (임시 데이터)
       UserProfileScreen(
-          user: model.User(id: _uid, nickname: '내 정보', bio: '', locationPublic: true, followers: 0, following: 0, createdAt: ''),
+          user: model.User(id: _uid, email: currentUserEmail, nickname: '내 정보', bio: '', locationPublic: true, followers: 0, following: 0, createdAt: DateTime.now().toIso8601String()),
           onUserUpdate: (u) {}
-      ), // 3: 프로필
+      ), // 3: 프로필 (임시 데이터)
     ];
   }
 

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart' as auth;
 import '../models/user.dart';
 import '../services/storage_service.dart';
 import '../services/follow_service.dart';
@@ -520,6 +521,42 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     );
   }
 
+  // 로그아웃 확인 다이얼로그
+  void _showLogoutDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('로그아웃'),
+        content: const Text('정말 로그아웃 하시겠습니까?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('취소'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(context); // 팝업 닫기
+              try {
+                // [수정됨] 별명(auth)을 사용해서 로그아웃 호출
+                await auth.FirebaseAuth.instance.signOut();
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('로그아웃 실패: $e')),
+                  );
+                }
+              }
+            },
+            child: const Text(
+              '로그아웃',
+              style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _editProfile() {
     final nicknameController = TextEditingController(text: _currentUser.nickname);
     final bioController = TextEditingController(text: _currentUser.bio);
@@ -827,6 +864,21 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                       },
                     ),
                   ),
+
+                  // 로그아웃 버튼 영역
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 8.0),
+                    child: Divider(),
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.logout, color: Colors.red),
+                    title: const Text(
+                      '로그아웃',
+                      style: TextStyle(color: Colors.red, fontWeight: FontWeight.w600),
+                    ),
+                    onTap: _showLogoutDialog, // 로그아웃 다이얼로그 호출
+                  ),
+                  const SizedBox(height: 40),
                 ],
               ),
             ),
