@@ -1,7 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import '../models/walk.dart';
-
+import 'package:firebase_auth/firebase_auth.dart';
 /// 산책 기록 관련 서비스 클래스
 class WalkService {
   /// 차단된 사용자의 산책 기록을 필터링합니다.
@@ -119,5 +119,23 @@ class WalkService {
     }
 
     return filteredWalks;
+  }
+  static Future<List<Walk>> fetchUserWalks(String userId) async {
+    try {
+      final snapshot = await FirebaseFirestore.instance
+          .collection('walks') // 산책 기록이 저장된 컬렉션 이름 (확인 필요)
+          .where('userId', isEqualTo: userId)
+          .orderBy('startTime', descending: true)
+          .get();
+
+      return snapshot.docs.map((doc) {
+        final data = doc.data();
+        data['id'] = doc.id;
+        return Walk.fromJson(data);
+      }).toList();
+    } catch (e) {
+      debugPrint("산책 기록 가져오기 실패: $e");
+      return [];
+    }
   }
 }
