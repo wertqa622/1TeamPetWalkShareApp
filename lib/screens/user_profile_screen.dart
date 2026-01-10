@@ -26,6 +26,10 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   Set<String> _myFollowingIds = {};
   // 팔로잉 목록 (상태 유지)
   List<User> _followingList = [];
+  // 차단된 사용자 ID 목록 (상태 유지)
+  Set<String> _blockedUserIds = {};
+  // 차단한 사용자 목록 (차단 해제 버튼 표시용)
+  List<User> _blockedUsersList = [];
 
   @override
   void initState() {
@@ -33,6 +37,282 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     _currentUser = widget.user;
     _loadUserDataFromFirestore();
     _initializeFollowCounts();
+    _loadBlockedUsers();
+  }
+
+  /// 차단한 사용자 목록 로드 (a_user 컬렉션에서 직접 가져오기)
+  Future<void> _loadBlockedUsers() async {
+    try {
+      // a_user 컬렉션에서 차단한 사용자 정보 가져오기
+      final snapshot = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(_currentUser.id)
+          .collection('a_user')
+          .get();
+      
+      final blockedNicknames = <String>[];
+      final blockedUsersList = <User>[];
+      
+      for (final doc in snapshot.docs) {
+        if (doc.id == '.init') continue;
+        
+        final data = doc.data();
+        final nickname = data['nickname'] as String? ?? '';
+        if (nickname.isEmpty) continue;
+        
+        // Firestore 문서 ID에 사용할 수 없는 문자 제거/치환
+        final normalizedNickname = nickname
+            .replaceAll('/', '_')
+            .replaceAll('?', '_')
+            .replaceAll('#', '_')
+            .replaceAll('[', '_')
+            .replaceAll(']', '_')
+            .replaceAll('*', '_')
+            .trim();
+        
+        blockedNicknames.add(normalizedNickname);
+        
+        // 사용자 정보 생성
+        String createdAtStr;
+        if (data['createdAt'] != null) {
+          if (data['createdAt'] is Timestamp) {
+            createdAtStr = (data['createdAt'] as Timestamp).toDate().toIso8601String();
+          } else {
+            createdAtStr = data['createdAt'].toString();
+          }
+        } else {
+          createdAtStr = DateTime.now().toIso8601String();
+        }
+        
+        blockedUsersList.add(User(
+          id: data['blockedId'] as String? ?? data['id'] as String? ?? '',
+          email: data['email'] ?? '',
+          nickname: nickname,
+          bio: data['bio'] ?? '',
+          locationPublic: data['locationPublic'] ?? true,
+          followers: (data['followers'] ?? 0) as int,
+          following: (data['following'] ?? 0) as int,
+          createdAt: createdAtStr,
+        ));
+      }
+      
+      if (mounted) {
+        setState(() {
+          _blockedUserIds = blockedNicknames.toSet();
+          _blockedUsersList = blockedUsersList;
+        });
+      }
+    } catch (e) {
+      debugPrint('차단 목록 로드 실패: $e');
+    }
+  }
+  
+  /// 차단 해제 버튼 클릭 시 모달 표시
+  void _showUnblockModal() {
+    if (_blockedUsersList.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('차단한 사용자가 없습니다'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+    
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        height: MediaQuery.of(context).size.height * 0.7,
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.only(
+            topLeft: Radius.circular(20),
+            topRight: Radius.circular(20),
+          ),
+        ),
+        child: Column(
+          children: [
+            // 헤더
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    '차단 해제',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+            // 목록
+            Expanded(
+              child: _blockedUsersList.isEmpty
+                  ? Center(
+                      child: Text(
+                        '차단한 사용자가 없습니다',
+                        style: TextStyle(
+                          color: Colors.grey[600],
+                          fontSize: 16,
+                        ),
+                      ),
+                    )
+                  : ListView.builder(
+                      itemCount: _blockedUsersList.length,
+                      itemBuilder: (context, index) {
+                        final user = _blockedUsersList[index];
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                          child: Row(
+                            children: [
+                              // 프로필 이미지
+                              CircleAvatar(
+                                backgroundColor: Colors.blue[100],
+                                child: const Icon(
+                                  Icons.person,
+                                  color: Colors.blue,
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              // 사용자 정보
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      user.nickname,
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 16,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      user.bio,
+                                      style: TextStyle(
+                                        color: Colors.grey[600],
+                                        fontSize: 12,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              // 차단 해제 버튼
+                              ElevatedButton(
+                                onPressed: () {
+                                  Navigator.pop(context);
+                                  _unblockUser(user.id);
+                                },
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.green,
+                                  foregroundColor: Colors.white,
+                                ),
+                                child: const Text('차단 해제'),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// 특정 사용자의 nickname으로 차단 여부 확인
+  bool _isUserBlockedByNickname(String nickname) {
+    // Firestore 문서 ID에 사용할 수 없는 문자 제거/치환
+    final normalizedNickname = nickname
+        .replaceAll('/', '_')
+        .replaceAll('?', '_')
+        .replaceAll('#', '_')
+        .replaceAll('[', '_')
+        .replaceAll(']', '_')
+        .replaceAll('*', '_')
+        .trim();
+    return _blockedUserIds.contains(normalizedNickname);
+  }
+
+  /// 특정 사용자를 차단했는지 확인
+  Future<bool> _checkIfBlocked(String userId) async {
+    try {
+      return await BlockService.isBlocking(_currentUser.id, userId);
+    } catch (e) {
+      debugPrint('차단 확인 실패: $e');
+      return false;
+    }
+  }
+
+  /// 차단 해제
+  Future<void> _unblockUser(String blockedId) async {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('차단 해제'),
+        content: const Text('차단을 해제하시겠습니까?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('취소'),
+          ),
+          TextButton(
+            onPressed: () async {
+              try {
+                Navigator.pop(context);
+                
+                await BlockService.unblockUser(_currentUser.id, blockedId);
+                
+                // 차단 목록 다시 로드
+                await _loadBlockedUsers();
+                
+                // 상태 업데이트를 위해 setState 호출
+                if (mounted) {
+                  setState(() {});
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('차단이 해제되었습니다'),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                  // 모달이 열려있으면 닫기
+                  if (Navigator.canPop(context)) {
+                    Navigator.pop(context);
+                  }
+                }
+              } catch (e) {
+                debugPrint('차단 해제 실패: $e');
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('차단 해제 실패: $e'),
+                      backgroundColor: Colors.red,
+                      duration: const Duration(seconds: 5),
+                    ),
+                  );
+                }
+              }
+            },
+            child: const Text(
+              '해제',
+              style: TextStyle(color: Colors.green),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _loadUserDataFromFirestore() async {
@@ -216,6 +496,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                             itemBuilder: (context, index) {
                               final user = searchResults[index];
                               final isFollowing = _myFollowingIds.contains(user.id);
+                              final isBlocked = _isUserBlockedByNickname(user.nickname);
                               
                               return Padding(
                                 padding: const EdgeInsets.symmetric(
@@ -258,51 +539,67 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                                         ],
                                       ),
                                     ),
-                                    // 팔로우/언팔로우 버튼
-                                    Padding(
-                                      padding: const EdgeInsets.only(right: 8.0),
-                                      child: ElevatedButton(
-                                        onPressed: () {
-                                          if (isFollowing) {
-                                            _unfollowUserFromSearch(user, setModalState);
-                                          } else {
-                                            _followUserFromSearch(user, setModalState);
+                                    // 차단 해제 버튼 또는 팔로우/언팔로우 버튼
+                                    if (isBlocked)
+                                      Padding(
+                                        padding: const EdgeInsets.only(right: 8.0),
+                                        child: ElevatedButton(
+                                          onPressed: () {
+                                            _unblockUser(user.id);
+                                          },
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: Colors.green,
+                                            foregroundColor: Colors.white,
+                                          ),
+                                          child: const Text('차단 해제'),
+                                        ),
+                                      )
+                                    else
+                                      Padding(
+                                        padding: const EdgeInsets.only(right: 8.0),
+                                        child: ElevatedButton(
+                                          onPressed: () {
+                                            if (isFollowing) {
+                                              _unfollowUserFromSearch(user, setModalState);
+                                            } else {
+                                              _followUserFromSearch(user, setModalState);
+                                            }
+                                          },
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: isFollowing
+                                                ? Colors.grey[300]
+                                                : const Color(0xFF2563EB),
+                                            foregroundColor: isFollowing
+                                                ? Colors.black
+                                                : Colors.white,
+                                          ),
+                                          child: Text(isFollowing ? '언팔로우' : '팔로우'),
+                                        ),
+                                      ),
+                                    // 점3개 메뉴 (차단되지 않은 경우에만 표시)
+                                    if (!isBlocked)
+                                      PopupMenuButton<String>(
+                                        icon: const Icon(Icons.more_vert),
+                                        padding: EdgeInsets.zero,
+                                        constraints: const BoxConstraints(),
+                                        onSelected: (value) {
+                                          if (value == 'block') {
+                                            _blockUserFromSearch(user, setModalState, searchResults);
                                           }
                                         },
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor: isFollowing
-                                              ? Colors.grey[300]
-                                              : const Color(0xFF2563EB),
-                                          foregroundColor: isFollowing
-                                              ? Colors.black
-                                              : Colors.white,
-                                        ),
-                                        child: Text(isFollowing ? '언팔로우' : '팔로우'),
-                                      ),
-                                    ),
-                                    // 점3개 메뉴
-                                    PopupMenuButton<String>(
-                                      icon: const Icon(Icons.more_vert),
-                                      padding: EdgeInsets.zero,
-                                      constraints: const BoxConstraints(),
-                                      onSelected: (value) {
-                                        if (value == 'block') {
-                                          _blockUserFromSearch(user, setModalState, searchResults);
-                                        }
-                                      },
-                                      itemBuilder: (context) => [
-                                        const PopupMenuItem(
-                                          value: 'block',
-                                          child: Row(
-                                            children: [
-                                              Icon(Icons.block, color: Colors.red),
-                                              SizedBox(width: 8),
-                                              Text('차단하기', style: TextStyle(color: Colors.red)),
-                                            ],
+                                        itemBuilder: (context) => [
+                                          const PopupMenuItem(
+                                            value: 'block',
+                                            child: Row(
+                                              children: [
+                                                Icon(Icons.block, color: Colors.red),
+                                                SizedBox(width: 8),
+                                                Text('차단하기', style: TextStyle(color: Colors.red)),
+                                              ],
+                                            ),
                                           ),
-                                        ),
-                                      ],
-                                    ),
+                                        ],
+                                      ),
                                   ],
                                 ),
                               );
@@ -388,6 +685,50 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
 
   Future<void> _followUserFromSearch(User user, StateSetter setModalState) async {
     try {
+      // 차단 여부 확인 (팔로우 시도 전에 확인)
+      final isBlockedByUser = await BlockService.isBlockedBy(_currentUser.id, user.id);
+      final isBlockingUser = await BlockService.isBlocking(_currentUser.id, user.id);
+      
+      if (isBlockedByUser) {
+        // 나를 차단한 사용자인 경우
+        if (mounted) {
+          showDialog(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: const Text('팔로우 불가'),
+              content: const Text('팔로우할 수 없습니다.'),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('확인'),
+                ),
+              ],
+            ),
+          );
+        }
+        return;
+      }
+      
+      if (isBlockingUser) {
+        // 내가 차단한 사용자인 경우
+        if (mounted) {
+          showDialog(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: const Text('팔로우 불가'),
+              content: Text('차단한 사용자는 팔로우할 수 없습니다. 차단을 해제한 후 팔로우할 수 있습니다.'),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('확인'),
+                ),
+              ],
+            ),
+          );
+        }
+        return;
+      }
+      
       await FollowService.followUser(_currentUser.id, user.id);
       
       setModalState(() {
@@ -425,13 +766,34 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       }
     } catch (e) {
       debugPrint('팔로우 실패: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('팔로우 실패: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
+      
+      // 예외 메시지에 차단 관련 내용이 있는지 확인
+      final errorMessage = e.toString();
+      if (errorMessage.contains('차단된 사용자') || errorMessage.contains('차단')) {
+        if (mounted) {
+          showDialog(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: const Text('팔로우 불가'),
+              content: const Text('차단된 사용자는 팔로우할 수 없습니다.'),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('확인'),
+                ),
+              ],
+            ),
+          );
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('팔로우 실패: $e'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
       }
     }
   }
@@ -822,16 +1184,94 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            _buildStatItem(
-                              '팔로워',
-                              _currentUser.followers.toString(),
-                              _showFollowersModal,
+                            // 팔로워 수를 실시간으로 감시
+                            StreamBuilder<QuerySnapshot>(
+                              stream: FirebaseFirestore.instance
+                                  .collection('users')
+                                  .doc(_currentUser.id)
+                                  .collection('followers')
+                                  .snapshots(),
+                              builder: (context, snapshot) {
+                                final followerCount = snapshot.hasData 
+                                    ? snapshot.data!.docs.where((doc) => doc.id != '.init').length
+                                    : _currentUser.followers;
+                                
+                                // 상태 업데이트 (다른 곳에서도 사용할 수 있도록)
+                                if (snapshot.hasData && mounted) {
+                                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                                    if (_currentUser.followers != followerCount) {
+                                      setState(() {
+                                        _currentUser = _currentUser.copyWith(
+                                          followers: followerCount,
+                                        );
+                                      });
+                                      widget.onUserUpdate(_currentUser);
+                                    }
+                                  });
+                                }
+                                
+                                return _buildStatItem(
+                                  '팔로워',
+                                  followerCount.toString(),
+                                  _showFollowersModal,
+                                );
+                              },
                             ),
                             const SizedBox(width: 32),
-                            _buildStatItem(
-                              '팔로잉',
-                              _currentUser.following.toString(),
-                              _showFollowingModal,
+                            // 팔로잉 수를 실시간으로 감시
+                            StreamBuilder<QuerySnapshot>(
+                              stream: FirebaseFirestore.instance
+                                  .collection('users')
+                                  .doc(_currentUser.id)
+                                  .collection('following')
+                                  .snapshots(),
+                              builder: (context, snapshot) {
+                                if (snapshot.connectionState == ConnectionState.waiting) {
+                                  return _buildStatItem(
+                                    '팔로잉',
+                                    _currentUser.following.toString(),
+                                    _showFollowingModal,
+                                  );
+                                }
+                                
+                                if (snapshot.hasError) {
+                                  debugPrint('팔로잉 StreamBuilder 오류: ${snapshot.error}');
+                                  return _buildStatItem(
+                                    '팔로잉',
+                                    _currentUser.following.toString(),
+                                    _showFollowingModal,
+                                  );
+                                }
+                                
+                                final followingCount = snapshot.hasData 
+                                    ? snapshot.data!.docs.where((doc) => doc.id != '.init').length
+                                    : _currentUser.following;
+                                
+                                debugPrint('팔로잉 StreamBuilder 업데이트: ${_currentUser.id}의 팔로잉 수 = $followingCount (이전: ${_currentUser.following})');
+                                
+                                // 상태 업데이트 (다른 곳에서도 사용할 수 있도록)
+                                if (snapshot.hasData && mounted) {
+                                  if (_currentUser.following != followingCount) {
+                                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                                      if (mounted && _currentUser.following != followingCount) {
+                                        setState(() {
+                                          _currentUser = _currentUser.copyWith(
+                                            following: followingCount,
+                                          );
+                                        });
+                                        widget.onUserUpdate(_currentUser);
+                                        debugPrint('팔로잉 수 상태 업데이트 완료: $followingCount');
+                                      }
+                                    });
+                                  }
+                                }
+                                
+                                return _buildStatItem(
+                                  '팔로잉',
+                                  followingCount.toString(),
+                                  _showFollowingModal,
+                                );
+                              },
                             ),
                           ],
                         ),
@@ -910,6 +1350,19 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                     ),
                   ),
 
+                  // 차단 해제 버튼 영역
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 8.0),
+                    child: Divider(),
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.block, color: Colors.orange),
+                    title: const Text(
+                      '차단 해제',
+                      style: TextStyle(color: Colors.orange, fontWeight: FontWeight.w600),
+                    ),
+                    onTap: _showUnblockModal, // 차단 해제 모달 호출
+                  ),
                   // 로그아웃 버튼 영역
                   const Padding(
                     padding: EdgeInsets.symmetric(vertical: 8.0),
@@ -1050,6 +1503,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                                   future: FollowService.isFollowing(_currentUser.id, user.id),
                                   builder: (context, followingSnapshot) {
                                     final isFollowing = followingSnapshot.data ?? false;
+                                    final isBlocked = _isUserBlockedByNickname(user.nickname);
                                     
                                     return Padding(
                                       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
@@ -1089,8 +1543,22 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                                               ],
                                             ),
                                           ),
-                                          // 맞팔로우 버튼 (팔로우하지 않은 경우만 표시)
-                                          if (!isFollowing)
+                                          // 차단 해제 버튼 또는 맞팔로우 버튼
+                                          if (isBlocked)
+                                            Padding(
+                                              padding: const EdgeInsets.only(right: 8.0),
+                                              child: ElevatedButton(
+                                                onPressed: () {
+                                                  _unblockUser(user.id);
+                                                },
+                                                style: ElevatedButton.styleFrom(
+                                                  backgroundColor: Colors.green,
+                                                  foregroundColor: Colors.white,
+                                                ),
+                                                child: const Text('차단 해제'),
+                                              ),
+                                            )
+                                          else if (!isFollowing)
                                             Padding(
                                               padding: const EdgeInsets.only(right: 8.0),
                                               child: TextButton(
@@ -1100,29 +1568,30 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                                                 child: const Text('맞팔로우'),
                                               ),
                                             ),
-                                          // 점3개 메뉴 (헤더 x버튼과 같은 높이)
-                                          PopupMenuButton<String>(
-                                            icon: const Icon(Icons.more_vert),
-                                            padding: EdgeInsets.zero,
-                                            constraints: const BoxConstraints(),
-                                            onSelected: (value) {
-                                              if (value == 'block') {
-                                                _blockUser(user, setModalState, followers, isFollowersList: true);
-                                              }
-                                            },
-                                            itemBuilder: (context) => [
-                                              const PopupMenuItem(
-                                                value: 'block',
-                                                child: Row(
-                                                  children: [
-                                                    Icon(Icons.block, color: Colors.red),
-                                                    SizedBox(width: 8),
-                                                    Text('차단하기', style: TextStyle(color: Colors.red)),
-                                                  ],
+                                          // 점3개 메뉴 (차단되지 않은 경우에만 표시)
+                                          if (!isBlocked)
+                                            PopupMenuButton<String>(
+                                              icon: const Icon(Icons.more_vert),
+                                              padding: EdgeInsets.zero,
+                                              constraints: const BoxConstraints(),
+                                              onSelected: (value) {
+                                                if (value == 'block') {
+                                                  _blockUser(user, setModalState, followers, isFollowersList: true);
+                                                }
+                                              },
+                                              itemBuilder: (context) => [
+                                                const PopupMenuItem(
+                                                  value: 'block',
+                                                  child: Row(
+                                                    children: [
+                                                      Icon(Icons.block, color: Colors.red),
+                                                      SizedBox(width: 8),
+                                                      Text('차단하기', style: TextStyle(color: Colors.red)),
+                                                    ],
+                                                  ),
                                                 ),
-                                              ),
-                                            ],
-                                          ),
+                                              ],
+                                            ),
                                         ],
                                       ),
                                     );
@@ -1399,6 +1868,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                               itemCount: following.length,
                               itemBuilder: (context, index) {
                                 final user = following[index];
+                                
                                 return Padding(
                                   padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
                                   child: Row(
@@ -1437,7 +1907,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                                           ],
                                         ),
                                       ),
-                                      // 점3개 메뉴 (헤더 x버튼과 같은 높이)
+                                      // 점3개 메뉴
                                       PopupMenuButton<String>(
                                         icon: const Icon(Icons.more_vert),
                                         padding: EdgeInsets.zero,
@@ -1445,8 +1915,6 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                                         onSelected: (value) {
                                           if (value == 'unfollow') {
                                             _unfollowUser(user, setModalState);
-                                          } else if (value == 'block') {
-                                            _blockUser(user, setModalState, following, isFollowersList: false);
                                           }
                                         },
                                         itemBuilder: (context) => [
@@ -1457,16 +1925,6 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                                                 Icon(Icons.person_remove, color: Colors.blue),
                                                 SizedBox(width: 8),
                                                 Text('언팔로우'),
-                                              ],
-                                            ),
-                                          ),
-                                          const PopupMenuItem(
-                                            value: 'block',
-                                            child: Row(
-                                              children: [
-                                                Icon(Icons.block, color: Colors.red),
-                                                SizedBox(width: 8),
-                                                Text('차단하기', style: TextStyle(color: Colors.red)),
                                               ],
                                             ),
                                           ),

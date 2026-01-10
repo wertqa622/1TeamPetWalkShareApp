@@ -1,7 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import '../models/walk.dart';
-
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:share_plus/share_plus.dart';
 /// 산책 기록 관련 서비스 클래스
 class WalkService {
   /// 차단된 사용자의 산책 기록을 필터링합니다.
@@ -119,5 +120,82 @@ class WalkService {
     }
 
     return filteredWalks;
+  }
+  static Future<List<Walk>> fetchUserWalks(String userId) async {
+    try {
+      final snapshot = await FirebaseFirestore.instance
+          .collection('walks') // 산책 기록이 저장된 컬렉션 이름 (확인 필요)
+          .where('userId', isEqualTo: userId)
+          .orderBy('startTime', descending: true)
+          .get();
+
+      return snapshot.docs.map((doc) {
+        final data = doc.data();
+        data['id'] = doc.id;
+        return Walk.fromJson(data);
+      }).toList();
+    } catch (e) {
+      debugPrint("산책 기록 가져오기 실패: $e");
+      return [];
+    }
+  }
+  static Future<bool> toggleLike(String walkId, String userId) async {
+    final walkRef = FirebaseFirestore.instance.collection('walks').doc(walkId);
+    final likeRef = walkRef.collection('likes').doc(userId);
+
+    return FirebaseFirestore.instance.runTransaction((transaction) async {
+      final likeDoc = await transaction.get(likeRef);
+
+      if (likeDoc.exists) {
+        // 이미 좋아요를 누른 상태 -> 취소
+        transaction.delete(likeRef);
+        transaction.update(walkRef, {
+          'likeCount': FieldValue.increment(-1),
+        });
+        return false; // 현재 상태: 안 누름
+      } else {
+        // 좋아요를 안 누른 상태 -> 추가
+        transaction.set(likeRef, {
+          'createdAt': FieldValue.serverTimestamp(),
+          'userId': userId,
+        });
+        transaction.update(walkRef, {
+          'likeCount': FieldValue.increment(1),
+        });
+        return true; // 현재 상태: 누름
+      }
+    });
+  }
+
+  /// 현재 사용자가 이 게시글에 좋아요를 눌렀는지 확인
+  static Future<bool> isLiked(String walkId, String userId) async {
+    final doc = await FirebaseFirestore.instance
+        .collection('walks')
+        .doc(walkId)
+        .collection('likes')
+        .doc(userId)
+        .get();
+    return doc.exists;
+  }
+
+  /// SNS 공유 기능
+  static void shareWalk(Walk walk, String nickname) {
+    final date = walk.startTime.toString().split(' ')[0];
+    final distance = (walk.distance ?? 0).toStringAsFixed(2);
+    final time = walk.duration != null ? (walk.duration! ~/ 60).toString() : '0';
+
+    String content = '''
+🐕 [반려동물 산책 공유]
+$nickname님의 산책 기록을 확인해보세요!
+
+📅 날짜: $date
+👣 거리: ${distance}km
+⏰ 시간: ${time}분
+Mood: ${walk.mood ?? '기분 좋음'}
+
+#1TeamPetWalkShareApp #산책 #반려동물
+''';
+
+    Share.share(content);
   }
 }
