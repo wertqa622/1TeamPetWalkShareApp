@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+
+import 'package:flutter_localizations/flutter_localizations.dart';
+
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'firebase_options.dart';
@@ -34,10 +37,28 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: '반려동물 산책 다이어리',
       debugShowCheckedModeBanner: false, // 오른쪽 위 디버그 띠 제거
+
+      // ▼ 2. 한국어 지원 설정 추가 (이게 없으면 달력에서 앱이 죽습니다)
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: const [
+        Locale('ko', 'KR'), // 한국어
+        Locale('en', 'US'), // 영어
+      ],
+      // ▲ 여기까지 추가됨
+
       theme: ThemeData(
         useMaterial3: true,
         colorSchemeSeed: const Color(0xFF2563EB),
         scaffoldBackgroundColor: const Color(0xFFF8FAFC),
+        // 달력 테마 커스터마이징 (선택사항, 필요시 주석 해제)
+        // datePickerTheme: const DatePickerThemeData(
+        //   headerBackgroundColor: Color(0xFF2563EB),
+        //   headerForegroundColor: Colors.white,
+        // ),
       ),
       // 앱이 켜지면 AuthWrapper가 로그인 여부를 판단합니다.
       home: const AuthWrapper(),
@@ -72,7 +93,7 @@ class AuthWrapper extends StatelessWidget {
 }
 
 // ---------------------------------------------------------
-// [MainScreen] 로그인 성공 후 보여질 탭 메뉴 화면 (별도 파일 안 만듦)
+// [MainScreen] 로그인 성공 후 보여질 탭 메뉴 화면
 // ---------------------------------------------------------
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -97,12 +118,11 @@ class _MainScreenState extends State<MainScreen> {
       WalkTrackingScreen(userId: _uid),      // 1: 산책
       // 소셜 피드와 프로필 화면은 User 객체가 필요한데,
       // 우선 userId만 넘겨서 동작하도록 하거나 임시로 연결합니다.
-      // (기능 구현이 완료되면 해당 Screen으로 교체하세요)
-      SocialFeedScreen(currentUser: model.User(id: _uid, nickname: '사용자', bio: '', locationPublic: true, followers: 0, following: 0, createdAt: '')), // 2: 피드 (임시 데이터)
+      SocialFeedScreen(currentUser: model.User(id: _uid, nickname: '사용자', bio: '', locationPublic: true, followers: 0, following: 0, createdAt: '')), // 2: 피드
       UserProfileScreen(
           user: model.User(id: _uid, nickname: '내 정보', bio: '', locationPublic: true, followers: 0, following: 0, createdAt: ''),
           onUserUpdate: (u) {}
-      ), // 3: 프로필 (임시 데이터)
+      ), // 3: 프로필
     ];
   }
 
