@@ -225,7 +225,7 @@ class _MainScreenState extends State<MainScreen> {
           _isLoadingUser = false;
           _screens = [
             PetManagementScreen(userId: _uid),
-            WalkTrackingScreen(userId: _uid),
+            WalkHomeTab(userId: _uid),
             SocialFeedScreen(currentUser: _currentUser!),
             UserProfileScreen(
               user: _currentUser!,
