@@ -142,6 +142,7 @@ class _PetManagementScreenState extends State<PetManagementScreen> {
     final bool isLocalFile = hasImage && !pet.imageUrl!.startsWith('http');
 
     return Card(
+      margin: const EdgeInsets.only(top: 16),
       elevation: 2,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
@@ -149,6 +150,7 @@ class _PetManagementScreenState extends State<PetManagementScreen> {
           color: Colors.blue.shade300,
           width: 1,
         ),
+
       ),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 20.0),

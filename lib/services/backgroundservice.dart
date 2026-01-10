@@ -31,6 +31,7 @@ Future<void> initializeService() async {
 void onStart(ServiceInstance service) async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
+  WidgetsFlutterBinding.ensureInitialized();
 
   final SharedPreferences prefs = await SharedPreferences.getInstance();
   double totalDistance = 0.0;
