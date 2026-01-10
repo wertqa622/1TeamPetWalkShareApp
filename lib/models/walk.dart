@@ -13,6 +13,7 @@ class Walk {
   final String? mood;
   final String? imageUrl;
   final String createdAt;
+  final int likeCount;
 
   Walk({
     required this.id,
@@ -27,6 +28,8 @@ class Walk {
     this.mood,
     this.imageUrl,
     required this.createdAt,
+    this.likeCount = 0,
+
   });
 
   Map<String, dynamic> toJson() {
@@ -43,6 +46,7 @@ class Walk {
       'mood': mood,
       'imageUrl': imageUrl,
       'createdAt': createdAt,
+      'likeCount': likeCount,
     };
   }
 
@@ -67,6 +71,7 @@ class Walk {
       mood: json['mood'] as String?,
       imageUrl: json['imageUrl'] as String?,
       createdAt: json['createdAt']?.toString() ?? '',
+      likeCount: json['likeCount'] as int? ?? 0,
     );
   }
 }
