@@ -24,7 +24,7 @@ class _LoginScreenState extends State<LoginScreen> {
       await FirebaseAuth.instance.signInWithEmailAndPassword(
         email: _emailController.text.trim(),
         password: _passwordController.text.trim(),
-      );
+      ).timeout(const Duration(seconds: 5)); //로그인 타임아웃 5초
       // 로그인 성공 시 AuthWrapper가 자동으로 MainScreen으로 이동
     } on FirebaseAuthException catch (e) {
       if(mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('로그인 실패: ${e.code}')));
@@ -40,7 +40,8 @@ class _LoginScreenState extends State<LoginScreen> {
       await FirebaseAuth.instance.createUserWithEmailAndPassword(
         email: _emailController.text.trim(),
         password: _passwordController.text.trim(),
-      );
+      )
+          .timeout(const Duration(seconds: 5)); //회원가입 타임아웃 5초
       if(mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('가입 성공!')));
     } on FirebaseAuthException catch (e) {
       if(mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('가입 실패: ${e.message}')));

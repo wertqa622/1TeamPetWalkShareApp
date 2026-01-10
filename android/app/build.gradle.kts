@@ -14,6 +14,7 @@ android {
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
+        isCoreLibraryDesugaringEnabled = true
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
@@ -33,6 +34,9 @@ android {
 
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+
+        // [추가] 메서드 개수 제한 에러를 방지하기 위해 설정
+        multiDexEnabled = true
     }
 
     buildTypes {
@@ -44,4 +48,9 @@ android {
 
 flutter {
     source = "../.."
+}
+
+// ▼ [추가] 파일 맨 아래에 dependencies 블록을 추가하여 디슈가링 라이브러리를 지정합니다.
+dependencies {
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.3")
 }

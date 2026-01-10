@@ -11,13 +11,14 @@ import 'services/backgroundservice.dart';
 // 화면들 import
 import 'screens/login_screen.dart';
 import 'screens/pet_management_screen.dart';
-import 'screens/walk_tracking_screen.dart';
+import 'screens/walk_home_tap.dart';
 import 'screens/social_feed_screen.dart';
 import 'screens/user_profile_screen.dart';
 import 'models/user.dart' as model; // User 모델 이름 충돌 방지
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
   // 1. Firebase 초기화
   await Firebase.initializeApp(
@@ -106,7 +107,7 @@ class MainScreen extends StatefulWidget {
 class _MainScreenState extends State<MainScreen> {
   int _currentIndex = 0;
   final String _uid = FirebaseAuth.instance.currentUser!.uid;
-  
+
   // 사용자 데이터
   model.User? _currentUser;
   bool _isLoadingUser = true;
@@ -123,7 +124,7 @@ class _MainScreenState extends State<MainScreen> {
   Future<void> _loadUserData() async {
     try {
       final currentUserEmail = FirebaseAuth.instance.currentUser?.email ?? '';
-      
+
       // Firestore에서 사용자 데이터 로드
       final userDoc = await FirebaseFirestore.instance
           .collection('users')
@@ -133,7 +134,7 @@ class _MainScreenState extends State<MainScreen> {
       model.User user;
       if (userDoc.exists) {
         final data = userDoc.data()!;
-        
+
         // createdAt 필드 처리
         String createdAtStr;
         if (data['createdAt'] != null) {
@@ -168,7 +169,7 @@ class _MainScreenState extends State<MainScreen> {
           following: 0,
           createdAt: DateTime.now().toIso8601String(),
         );
-        
+
         // Firestore에 사용자 문서 생성
         await FirebaseFirestore.instance
             .collection('users')
@@ -189,11 +190,11 @@ class _MainScreenState extends State<MainScreen> {
         setState(() {
           _currentUser = user;
           _isLoadingUser = false;
-          
+
           // 화면 리스트 생성
           _screens = [
             PetManagementScreen(userId: _uid),
-            WalkTrackingScreen(userId: _uid),
+            WalkHomeTab(userId: _uid),
             SocialFeedScreen(currentUser: user),
             UserProfileScreen(
               user: user,
@@ -224,7 +225,7 @@ class _MainScreenState extends State<MainScreen> {
           _isLoadingUser = false;
           _screens = [
             PetManagementScreen(userId: _uid),
-            WalkTrackingScreen(userId: _uid),
+            WalkHomeTab(userId: _uid),
             SocialFeedScreen(currentUser: _currentUser!),
             UserProfileScreen(
               user: _currentUser!,

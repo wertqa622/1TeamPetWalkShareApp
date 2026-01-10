@@ -212,10 +212,10 @@ class _AddPetScreenState extends State<AddPetScreen> {
 
       if (_isEditMode && widget.pet != null) {
         // 수정 모드
+        // age는 dateOfBirth로부터 계산되므로 업데이트하지 않음
         final updateData = {
           'name': _nameController.text.trim(),
           'breed': _breedController.text.trim(),
-          'age': age,
           'imageUrl': imageUrl,
           'dateOfBirth': _selectedDate?.toIso8601String(),
           'gender': _selectedGender,
