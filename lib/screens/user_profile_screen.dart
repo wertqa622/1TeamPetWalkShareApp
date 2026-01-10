@@ -822,16 +822,94 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            _buildStatItem(
-                              '팔로워',
-                              _currentUser.followers.toString(),
-                              _showFollowersModal,
+                            // 팔로워 수를 실시간으로 감시
+                            StreamBuilder<QuerySnapshot>(
+                              stream: FirebaseFirestore.instance
+                                  .collection('users')
+                                  .doc(_currentUser.id)
+                                  .collection('followers')
+                                  .snapshots(),
+                              builder: (context, snapshot) {
+                                final followerCount = snapshot.hasData 
+                                    ? snapshot.data!.docs.where((doc) => doc.id != '.init').length
+                                    : _currentUser.followers;
+                                
+                                // 상태 업데이트 (다른 곳에서도 사용할 수 있도록)
+                                if (snapshot.hasData && mounted) {
+                                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                                    if (_currentUser.followers != followerCount) {
+                                      setState(() {
+                                        _currentUser = _currentUser.copyWith(
+                                          followers: followerCount,
+                                        );
+                                      });
+                                      widget.onUserUpdate(_currentUser);
+                                    }
+                                  });
+                                }
+                                
+                                return _buildStatItem(
+                                  '팔로워',
+                                  followerCount.toString(),
+                                  _showFollowersModal,
+                                );
+                              },
                             ),
                             const SizedBox(width: 32),
-                            _buildStatItem(
-                              '팔로잉',
-                              _currentUser.following.toString(),
-                              _showFollowingModal,
+                            // 팔로잉 수를 실시간으로 감시
+                            StreamBuilder<QuerySnapshot>(
+                              stream: FirebaseFirestore.instance
+                                  .collection('users')
+                                  .doc(_currentUser.id)
+                                  .collection('following')
+                                  .snapshots(),
+                              builder: (context, snapshot) {
+                                if (snapshot.connectionState == ConnectionState.waiting) {
+                                  return _buildStatItem(
+                                    '팔로잉',
+                                    _currentUser.following.toString(),
+                                    _showFollowingModal,
+                                  );
+                                }
+                                
+                                if (snapshot.hasError) {
+                                  debugPrint('팔로잉 StreamBuilder 오류: ${snapshot.error}');
+                                  return _buildStatItem(
+                                    '팔로잉',
+                                    _currentUser.following.toString(),
+                                    _showFollowingModal,
+                                  );
+                                }
+                                
+                                final followingCount = snapshot.hasData 
+                                    ? snapshot.data!.docs.where((doc) => doc.id != '.init').length
+                                    : _currentUser.following;
+                                
+                                debugPrint('팔로잉 StreamBuilder 업데이트: ${_currentUser.id}의 팔로잉 수 = $followingCount (이전: ${_currentUser.following})');
+                                
+                                // 상태 업데이트 (다른 곳에서도 사용할 수 있도록)
+                                if (snapshot.hasData && mounted) {
+                                  if (_currentUser.following != followingCount) {
+                                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                                      if (mounted && _currentUser.following != followingCount) {
+                                        setState(() {
+                                          _currentUser = _currentUser.copyWith(
+                                            following: followingCount,
+                                          );
+                                        });
+                                        widget.onUserUpdate(_currentUser);
+                                        debugPrint('팔로잉 수 상태 업데이트 완료: $followingCount');
+                                      }
+                                    });
+                                  }
+                                }
+                                
+                                return _buildStatItem(
+                                  '팔로잉',
+                                  followingCount.toString(),
+                                  _showFollowingModal,
+                                );
+                              },
                             ),
                           ],
                         ),
