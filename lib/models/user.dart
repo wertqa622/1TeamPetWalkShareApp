@@ -1,5 +1,6 @@
 class User {
   final String id;
+  final String email;
   final String nickname;
   final String bio;
   final bool locationPublic;
@@ -9,6 +10,7 @@ class User {
 
   User({
     required this.id,
+    required this.email,
     required this.nickname,
     required this.bio,
     required this.locationPublic,
@@ -20,6 +22,7 @@ class User {
   Map<String, dynamic> toJson() {
     return {
       'id': id,
+      'email': email,
       'nickname': nickname,
       'bio': bio,
       'locationPublic': locationPublic,
@@ -32,6 +35,7 @@ class User {
   factory User.fromJson(Map<String, dynamic> json) {
     return User(
       id: json['id'] as String,
+      email: json['email'] as String? ?? '',
       nickname: json['nickname'] as String,
       bio: json['bio'] as String,
       locationPublic: json['locationPublic'] as bool,
@@ -43,6 +47,7 @@ class User {
 
   User copyWith({
     String? id,
+    String? email,
     String? nickname,
     String? bio,
     bool? locationPublic,
@@ -52,6 +57,7 @@ class User {
   }) {
     return User(
       id: id ?? this.id,
+      email: email ?? this.email,
       nickname: nickname ?? this.nickname,
       bio: bio ?? this.bio,
       locationPublic: locationPublic ?? this.locationPublic,

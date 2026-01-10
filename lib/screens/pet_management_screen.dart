@@ -73,46 +73,46 @@ class _PetManagementScreenState extends State<PetManagementScreen> {
     return Scaffold(
       body: CustomScrollView(
         slivers: [
-                  if (_pets.isEmpty)
+          if (_pets.isEmpty)
             SliverFillRemaining(
               hasScrollBody: false,
               child: Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(32.0),
-                        child: Column(
+                child: Padding(
+                  padding: const EdgeInsets.all(32.0),
+                  child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.pets,
-                              size: 64,
-                              color: Colors.grey[400],
-                            ),
-                            const SizedBox(height: 16),
-                            Text(
-                              '등록된 반려동물이 없습니다',
-                              style: TextStyle(
-                                color: Colors.grey[600],
-                                fontSize: 16,
-                              ),
-                            ),
-                            const SizedBox(height: 24),
-                            ElevatedButton.icon(
-                              onPressed: _addPet,
-                              icon: const Icon(Icons.add),
-                              label: const Text('반려동물 추가하기'),
-                              style: ElevatedButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 24,
-                                  vertical: 12,
-                                ),
-                              ),
-                            ),
-                          ],
-                  ),
+                    children: [
+                      Icon(
+                        Icons.pets,
+                        size: 64,
+                        color: Colors.grey[400],
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        '등록된 반려동물이 없습니다',
+                        style: TextStyle(
+                          color: Colors.grey[600],
+                          fontSize: 16,
                         ),
                       ),
-                    )
-                  else
+                      const SizedBox(height: 24),
+                      ElevatedButton.icon(
+                        onPressed: _addPet,
+                        icon: const Icon(Icons.add),
+                        label: const Text('반려동물 추가하기'),
+                        style: ElevatedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 24,
+                            vertical: 12,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            )
+          else
             SliverPadding(
               padding: const EdgeInsets.all(16.0),
               sliver: SliverList(
@@ -125,9 +125,9 @@ class _PetManagementScreenState extends State<PetManagementScreen> {
                     );
                   },
                   childCount: _pets.length,
+                ),
               ),
             ),
-          ),
         ],
       ),
       floatingActionButton: FloatingActionButton(
@@ -142,6 +142,7 @@ class _PetManagementScreenState extends State<PetManagementScreen> {
     final bool isLocalFile = hasImage && !pet.imageUrl!.startsWith('http');
 
     return Card(
+      margin: const EdgeInsets.only(top: 16),
       elevation: 2,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
@@ -149,6 +150,7 @@ class _PetManagementScreenState extends State<PetManagementScreen> {
           color: Colors.blue.shade300,
           width: 1,
         ),
+
       ),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 20.0),
@@ -210,7 +212,7 @@ class _PetManagementScreenState extends State<PetManagementScreen> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        pet.breed.isNotEmpty ? pet.breed : pet.species,
+                        pet.breed,
                         style: TextStyle(
                           fontSize: 14,
                           color: Colors.grey[600],
@@ -259,7 +261,7 @@ class _PetManagementScreenState extends State<PetManagementScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        '나이: ${pet.age}살',
+                        '나이: ${pet.calculateAge()}살',
                         style: TextStyle(
                           fontSize: 14,
                           color: Colors.grey[700],
