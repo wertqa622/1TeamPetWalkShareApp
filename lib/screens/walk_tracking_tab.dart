@@ -19,10 +19,8 @@ class WalkTrackingTab extends StatefulWidget {
   State<WalkTrackingTab> createState() => _WalkTrackingTabState();
 }
 
-// [수정]: AutomaticKeepAliveClientMixin을 추가하여 화면 유지 기능 구현
 class _WalkTrackingTabState extends State<WalkTrackingTab> with AutomaticKeepAliveClientMixin {
 
-  // [수정]: 탭 이동 시에도 상태를 유지하도록 설정
   @override
   bool get wantKeepAlive => true;
 
@@ -39,12 +37,23 @@ class _WalkTrackingTabState extends State<WalkTrackingTab> with AutomaticKeepAli
   @override
   void initState() {
     super.initState();
-    _checkActiveWalk(); // 화면 복귀 시 진행 중인 산책 확인
+    _checkActiveWalk();
     _listenToBackground();
-    _fetchCurrentLocationOnce(); // 시작 전이라도 지도를 사용자 위치로 세팅
+    _fetchCurrentLocationOnce();
   }
 
-  // 초기 진입 시 현재 위치를 가져와 지도를 미리 세팅
+  // [상태 업데이트 로직]: Firestore의 users 컬렉션 업데이트
+  Future<void> _updateWalkingStatus(String status) async {
+    try {
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(widget.userId)
+          .update({'walkingStatus': status});
+    } catch (e) {
+      debugPrint("상태 업데이트 실패: $e");
+    }
+  }
+
   Future<void> _fetchCurrentLocationOnce() async {
     try {
       Position pos = await Geolocator.getCurrentPosition(
@@ -66,7 +75,7 @@ class _WalkTrackingTabState extends State<WalkTrackingTab> with AutomaticKeepAli
       if (event != null && mounted) {
         setState(() {
           _isWalking = true;
-          _curDistance = event['distance'] ?? 0.0;
+          _curDistance = (event['distance'] as num?)?.toDouble() ?? 0.0;
           if (event['lat'] != null) {
             _curLatLng = LatLng(event['lat'], event['lng']);
           }
@@ -78,7 +87,6 @@ class _WalkTrackingTabState extends State<WalkTrackingTab> with AutomaticKeepAli
     });
   }
 
-  // [기존 유지]: 산책 시작 시 내 위치로 즉시 이동
   void _startWalk() async {
     await [Permission.location, Permission.notification].request();
 
@@ -100,6 +108,9 @@ class _WalkTrackingTabState extends State<WalkTrackingTab> with AutomaticKeepAli
     await prefs.setString('walk_start_time', _actualStartTime!.toIso8601String());
     await prefs.setString('current_user_id', widget.userId);
 
+    // [로직 추가]: 산책 시작 시 상태를 'on'으로 업데이트
+    await _updateWalkingStatus('on');
+
     FlutterBackgroundService().startService();
     _startTimer();
   }
@@ -111,7 +122,6 @@ class _WalkTrackingTabState extends State<WalkTrackingTab> with AutomaticKeepAli
     });
   }
 
-  // [기존 유지]: 1분 미만 종료 확인 및 취소/유지 팝업
   void _stopWalk() {
     if (_curDuration < 60) {
       showDialog(
@@ -167,7 +177,7 @@ class _WalkTrackingTabState extends State<WalkTrackingTab> with AutomaticKeepAli
               const SizedBox(height: 15),
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
-                children: ['😊', '🐶', '🏃', '😴', '💩'].map((e) => GestureDetector(
+                children: ['😊', '😑', '😫', '😴', ''].map((e) => GestureDetector(
                   onTap: () => setModalState(() => mood = e),
                   child: Container(
                     padding: const EdgeInsets.all(8),
@@ -208,6 +218,7 @@ class _WalkTrackingTabState extends State<WalkTrackingTab> with AutomaticKeepAli
       'imageUrl': imageUrl,
       'route': jsonEncode(_curPath.map((p) => {'lat': p.latitude, 'lng': p.longitude}).toList()),
       'createdAt': FieldValue.serverTimestamp(),
+      'walkingStatus': 'off', // 저장 시 세션 상태는 종료
     });
     _resetState(save: true);
     Navigator.pop(context);
@@ -216,6 +227,10 @@ class _WalkTrackingTabState extends State<WalkTrackingTab> with AutomaticKeepAli
   void _resetState({required bool save}) async {
     _uiTimer?.cancel();
     FlutterBackgroundService().invoke('stopService');
+
+    // [로직 추가]: 산책 종료/취소 시 상태를 'off'로 업데이트
+    await _updateWalkingStatus('off');
+
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('is_walking', false);
     setState(() {
@@ -229,13 +244,16 @@ class _WalkTrackingTabState extends State<WalkTrackingTab> with AutomaticKeepAli
   Future<void> _checkActiveWalk() async {
     final prefs = await SharedPreferences.getInstance();
     if (prefs.getBool('is_walking') ?? false) {
-      final start = DateTime.parse(prefs.getString('walk_start_time')!);
-      setState(() {
-        _actualStartTime = start;
-        _isWalking = true;
-        _curDuration = DateTime.now().difference(start).inSeconds;
-      });
-      _startTimer();
+      final startStr = prefs.getString('walk_start_time');
+      if (startStr != null) {
+        final start = DateTime.parse(startStr);
+        setState(() {
+          _actualStartTime = start;
+          _isWalking = true;
+          _curDuration = DateTime.now().difference(start).inSeconds;
+        });
+        _startTimer();
+      }
     }
   }
 

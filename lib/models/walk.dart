@@ -13,6 +13,7 @@ class Walk {
   final String? mood;
   final String? imageUrl;
   final String createdAt;
+  final String? walkingStatus;
   final int likeCount;
 
   Walk({
@@ -28,6 +29,7 @@ class Walk {
     this.mood,
     this.imageUrl,
     required this.createdAt,
+    this.walkingStatus,
     this.likeCount = 0,
 
   });
@@ -46,6 +48,7 @@ class Walk {
       'mood': mood,
       'imageUrl': imageUrl,
       'createdAt': createdAt,
+      'walkingStatus': walkingStatus,
       'likeCount': likeCount,
     };
   }
@@ -71,6 +74,7 @@ class Walk {
       mood: json['mood'] as String?,
       imageUrl: json['imageUrl'] as String?,
       createdAt: json['createdAt']?.toString() ?? '',
+      walkingStatus: json['walkingStatus'] as String? ?? 'off',
       likeCount: json['likeCount'] as int? ?? 0,
     );
   }
