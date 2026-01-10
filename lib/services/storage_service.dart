@@ -27,6 +27,7 @@ class StorageService {
 
     final defaultUser = User(
       id: '1',
+      email: 'default@example.com',
       nickname: '산책러버',
       bio: '우리 강아지와 함께하는 행복한 산책 🐕',
       locationPublic: true,
