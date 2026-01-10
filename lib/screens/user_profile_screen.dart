@@ -31,7 +31,52 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   void initState() {
     super.initState();
     _currentUser = widget.user;
+    _loadUserDataFromFirestore();
     _initializeFollowCounts();
+  }
+
+  Future<void> _loadUserDataFromFirestore() async {
+    try {
+      // Firestore에서 최신 사용자 데이터 로드
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(_currentUser.id)
+          .get();
+
+      if (userDoc.exists) {
+        final data = userDoc.data()!;
+        
+        // createdAt 필드 처리
+        String createdAtStr;
+        if (data['createdAt'] != null) {
+          if (data['createdAt'] is Timestamp) {
+            createdAtStr = (data['createdAt'] as Timestamp).toDate().toIso8601String();
+          } else {
+            createdAtStr = data['createdAt'].toString();
+          }
+        } else {
+          createdAtStr = _currentUser.createdAt;
+        }
+
+        if (mounted) {
+          setState(() {
+            _currentUser = User(
+              id: _currentUser.id,
+              email: data['email'] ?? _currentUser.email,
+              nickname: data['nickname'] ?? _currentUser.nickname,
+              bio: data['bio'] ?? _currentUser.bio,
+              locationPublic: data['locationPublic'] ?? _currentUser.locationPublic,
+              followers: (data['followers'] ?? _currentUser.followers) as int,
+              following: (data['following'] ?? _currentUser.following) as int,
+              createdAt: createdAtStr,
+            );
+          });
+          widget.onUserUpdate(_currentUser);
+        }
+      }
+    } catch (e) {
+      debugPrint('사용자 데이터 로드 실패: $e');
+    }
   }
 
   Future<void> _initializeFollowCounts() async {
