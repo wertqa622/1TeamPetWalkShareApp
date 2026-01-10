@@ -150,7 +150,181 @@ class BlockService {
         'blockedAt': FieldValue.serverTimestamp(), // 차단당한 시점
       });
 
+      // 차단 시 양방향 팔로우 관계 모두 끊기
+      // 차단이 발생하면 무조건 양방향 팔로우 관계를 모두 끊어야 함
+      // 1. blockerId가 blockedId를 팔로우하고 있는지 확인
+      final blockerFollowingBlockedRef = _firestore
+          .collection('users')
+          .doc(blockerId)
+          .collection('following')
+          .doc(blockedId);
+      
+      final blockerFollowingBlockedDoc = await blockerFollowingBlockedRef.get();
+      bool blockerWasFollowingBlocked = blockerFollowingBlockedDoc.exists;
+      debugPrint('차단 시 팔로우 확인: $blockerId가 $blockedId를 팔로우 중? $blockerWasFollowingBlocked');
+
+      // 2. blockedId가 blockerId를 팔로우하고 있는지 확인
+      final blockedFollowingBlockerRef = _firestore
+          .collection('users')
+          .doc(blockedId)
+          .collection('following')
+          .doc(blockerId);
+      
+      debugPrint('차단 시 팔로우 확인: $blockedId의 following 컬렉션에서 $blockerId 문서 확인 중...');
+      final blockedFollowingBlockerDoc = await blockedFollowingBlockerRef.get();
+      bool blockedWasFollowingBlocker = blockedFollowingBlockerDoc.exists;
+      debugPrint('차단 시 팔로우 확인 결과: $blockedId가 $blockerId를 팔로우 중? $blockedWasFollowingBlocker (문서 ID: ${blockedFollowingBlockerDoc.id}, 존재: ${blockedFollowingBlockerDoc.exists})');
+      
+      // 3. a_user나 d_user에 상대방이 있는지 확인 (추가 안전장치)
+      // blockerId의 a_user에 blockedId가 있는지 확인
+      final blockerAUserRef = _firestore
+          .collection('users')
+          .doc(blockerId)
+          .collection('a_user')
+          .doc(blockedNickname);
+      final blockerAUserDoc = await blockerAUserRef.get();
+      bool blockerHasBlockedInAUser = blockerAUserDoc.exists;
+      debugPrint('차단 시 a_user 확인: $blockerId의 a_user에 $blockedNickname이 있음? $blockerHasBlockedInAUser');
+      
+      // blockedId의 d_user에 blockerId가 있는지 확인
+      final blockedDUserRef = _firestore
+          .collection('users')
+          .doc(blockedId)
+          .collection('d_user')
+          .doc(blockerNickname);
+      final blockedDUserDoc = await blockedDUserRef.get();
+      bool blockedHasBlockerInDUser = blockedDUserDoc.exists;
+      debugPrint('차단 시 d_user 확인: $blockedId의 d_user에 $blockerNickname이 있음? $blockedHasBlockerInDUser');
+
+      // 3. 양방향 팔로우 관계 모두 삭제
+      final blockerUserRef = _firestore.collection('users').doc(blockerId);
+      final blockedUserRef = _firestore.collection('users').doc(blockedId);
+      
+      int blockerFollowingDecrement = 0;
+      int blockerFollowersDecrement = 0;
+      int blockedFollowingDecrement = 0;
+      int blockedFollowersDecrement = 0;
+
+      // blockerId가 blockedId를 팔로우하고 있거나, a_user에 blockedId가 있으면 무조건 제거
+      if (blockerWasFollowingBlocked || blockerHasBlockedInAUser) {
+        // blockerId의 following에서 blockedId 제거 (차단이 발생했으므로 무조건 제거)
+        debugPrint('차단 시 팔로우 관계 제거 시작: $blockerId의 following에서 $blockedId 삭제 (팔로우 중: $blockerWasFollowingBlocked, a_user에 있음: $blockerHasBlockedInAUser)');
+        
+        // 차단이 발생했으므로 무조건 following에서 제거 (존재 여부와 관계없이 시도)
+        if (blockerWasFollowingBlocked) {
+          batch.delete(blockerFollowingBlockedRef);
+          debugPrint('차단 시 팔로우 관계 제거: users/$blockerId/following/$blockedId 문서 삭제를 배치에 추가함');
+          blockerFollowingDecrement = 1;
+        } else {
+          // a_user에 있지만 following에 없을 수도 있으므로, 존재 여부를 다시 확인하고 삭제 시도
+          final checkDoc = await blockerFollowingBlockedRef.get();
+          if (checkDoc.exists) {
+            batch.delete(blockerFollowingBlockedRef);
+            debugPrint('차단 시 팔로우 관계 제거: users/$blockerId/following/$blockedId 문서가 존재하여 삭제를 배치에 추가함');
+            blockerFollowingDecrement = 1;
+          } else {
+            debugPrint('차단 시 팔로우 관계 확인: $blockerId의 following에 $blockedId 문서가 실제로 없음');
+          }
+        }
+        
+        // blockedId의 followers에서 blockerId 제거
+        final blockedFollowersRef = _firestore
+            .collection('users')
+            .doc(blockedId)
+            .collection('followers')
+            .doc(blockerId);
+        final blockedFollowersDoc = await blockedFollowersRef.get();
+        if (blockedFollowersDoc.exists) {
+          batch.delete(blockedFollowersRef);
+          debugPrint('차단 시 팔로우 관계 제거: users/$blockedId/followers/$blockerId 문서 삭제를 배치에 추가함');
+          blockedFollowersDecrement = 1;
+        } else {
+          debugPrint('차단 시 팔로우 관계 확인: $blockedId의 followers에 $blockerId 문서가 없음');
+        }
+        
+        debugPrint('차단 시 팔로우 관계 제거 완료: $blockerId가 $blockedId를 팔로우하고 있었음 (following 감소: $blockerFollowingDecrement, followers 감소: $blockedFollowersDecrement)');
+      } else {
+        debugPrint('차단 시 팔로우 관계 확인: $blockerId가 $blockedId를 팔로우하고 있지 않음');
+      }
+
+      // blockedId가 blockerId를 팔로우하고 있거나, d_user에 blockerId가 있으면 무조건 제거
+      if (blockedWasFollowingBlocker || blockedHasBlockerInDUser) {
+        // blockedId의 following에서 blockerId 제거 (차단이 발생했으므로 무조건 제거)
+        debugPrint('차단 시 팔로우 관계 제거 시작: $blockedId의 following에서 $blockerId 삭제 (팔로우 중: $blockedWasFollowingBlocker, d_user에 있음: $blockedHasBlockerInDUser)');
+        
+        // 차단이 발생했으므로 무조건 following에서 제거 (존재 여부와 관계없이 시도)
+        if (blockedWasFollowingBlocker) {
+          batch.delete(blockedFollowingBlockerRef);
+          debugPrint('차단 시 팔로우 관계 제거: users/$blockedId/following/$blockerId 문서 삭제를 배치에 추가함');
+          blockedFollowingDecrement = 1;
+        } else {
+          // d_user에 있지만 following에 없을 수도 있으므로, 존재 여부를 다시 확인하고 삭제 시도
+          final checkDoc = await blockedFollowingBlockerRef.get();
+          if (checkDoc.exists) {
+            batch.delete(blockedFollowingBlockerRef);
+            debugPrint('차단 시 팔로우 관계 제거: users/$blockedId/following/$blockerId 문서가 존재하여 삭제를 배치에 추가함');
+            blockedFollowingDecrement = 1;
+          } else {
+            debugPrint('차단 시 팔로우 관계 확인: $blockedId의 following에 $blockerId 문서가 실제로 없음');
+          }
+        }
+        
+        // blockerId의 followers에서 blockedId 제거
+        final blockerFollowersRef = _firestore
+            .collection('users')
+            .doc(blockerId)
+            .collection('followers')
+            .doc(blockedId);
+        final blockerFollowersDoc = await blockerFollowersRef.get();
+        if (blockerFollowersDoc.exists) {
+          batch.delete(blockerFollowersRef);
+          debugPrint('차단 시 팔로우 관계 제거: users/$blockerId/followers/$blockedId 문서 삭제를 배치에 추가함');
+          blockerFollowersDecrement = 1;
+        } else {
+          debugPrint('차단 시 팔로우 관계 확인: $blockerId의 followers에 $blockedId 문서가 없음');
+        }
+        
+        debugPrint('차단 시 팔로우 관계 제거 완료: $blockedId가 $blockerId를 팔로우하고 있었음 (following 감소: $blockedFollowingDecrement, followers 감소: $blockerFollowersDecrement)');
+      } else {
+        debugPrint('차단 시 팔로우 관계 확인: $blockedId가 $blockerId를 팔로우하고 있지 않음');
+      }
+
+      // 카운트 업데이트 (각 문서당 한 번만 업데이트)
+      if (blockerFollowingDecrement > 0 || blockerFollowersDecrement > 0) {
+        final blockerUpdate = <String, dynamic>{};
+        if (blockerFollowingDecrement > 0) {
+          blockerUpdate['following'] = FieldValue.increment(-blockerFollowingDecrement);
+        }
+        if (blockerFollowersDecrement > 0) {
+          blockerUpdate['followers'] = FieldValue.increment(-blockerFollowersDecrement);
+        }
+        batch.update(blockerUserRef, blockerUpdate);
+      }
+
+      if (blockedFollowingDecrement > 0 || blockedFollowersDecrement > 0) {
+        final blockedUpdate = <String, dynamic>{};
+        if (blockedFollowingDecrement > 0) {
+          blockedUpdate['following'] = FieldValue.increment(-blockedFollowingDecrement);
+          debugPrint('차단 시 카운트 업데이트: $blockedId의 following을 ${-blockedFollowingDecrement}만큼 감소');
+        }
+        if (blockedFollowersDecrement > 0) {
+          blockedUpdate['followers'] = FieldValue.increment(-blockedFollowersDecrement);
+          debugPrint('차단 시 카운트 업데이트: $blockedId의 followers를 ${-blockedFollowersDecrement}만큼 감소');
+        }
+        batch.update(blockedUserRef, blockedUpdate);
+        debugPrint('차단 시 카운트 업데이트 배치 추가: $blockedId 문서 업데이트');
+      } else {
+        debugPrint('차단 시 카운트 업데이트: $blockedId의 카운트 변경 없음');
+      }
+
+      debugPrint('차단 배치 커밋 시작... (총 ${blockerFollowingDecrement + blockerFollowersDecrement + blockedFollowingDecrement + blockedFollowersDecrement}개의 관계 제거 예정)');
       await batch.commit();
+      debugPrint('차단 배치 커밋 완료:');
+      debugPrint('  - users/$blockerId/following/$blockedId 삭제: ${blockerFollowingDecrement > 0 ? "예" : "아니오"}');
+      debugPrint('  - users/$blockedId/following/$blockerId 삭제: ${blockedFollowingDecrement > 0 ? "예" : "아니오"}');
+      debugPrint('  - users/$blockerId/followers/$blockedId 삭제: ${blockerFollowersDecrement > 0 ? "예" : "아니오"}');
+      debugPrint('  - users/$blockedId/followers/$blockerId 삭제: ${blockedFollowersDecrement > 0 ? "예" : "아니오"}');
+      debugPrint('StreamBuilder가 자동으로 감지하여 UI가 갱신됩니다.');
       debugPrint('차단 완료: $blockerId가 $blockedId를 차단 (a_user 문서 ID: $blockedNickname, d_user 문서 ID: $blockerNickname)');
     } catch (e) {
       debugPrint('차단 실패: $e');
