@@ -7,6 +7,7 @@ class User {
   final int followers;
   final int following;
   final String createdAt;
+  final String walkingStatus;
 
   User({
     required this.id,
@@ -17,6 +18,7 @@ class User {
     required this.followers,
     required this.following,
     required this.createdAt,
+    this.walkingStatus = 'off',
   });
 
   Map<String, dynamic> toJson() {
@@ -29,6 +31,7 @@ class User {
       'followers': followers,
       'following': following,
       'createdAt': createdAt,
+      'walkingStatus': walkingStatus,
     };
   }
 
@@ -42,6 +45,7 @@ class User {
       followers: json['followers'] as int,
       following: json['following'] as int,
       createdAt: json['createdAt'] as String,
+      walkingStatus: json['walkingStatus'] as String? ?? 'off',
     );
   }
 
@@ -54,6 +58,7 @@ class User {
     int? followers,
     int? following,
     String? createdAt,
+    String? walkingStatus,
   }) {
     return User(
       id: id ?? this.id,
@@ -64,6 +69,7 @@ class User {
       followers: followers ?? this.followers,
       following: following ?? this.following,
       createdAt: createdAt ?? this.createdAt,
+      walkingStatus: walkingStatus ?? this.walkingStatus,
     );
   }
 }
