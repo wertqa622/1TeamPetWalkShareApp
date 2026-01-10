@@ -142,6 +142,7 @@ class _PetManagementScreenState extends State<PetManagementScreen> {
     final bool isLocalFile = hasImage && !pet.imageUrl!.startsWith('http');
 
     return Card(
+      margin: const EdgeInsets.only(top: 16),
       elevation: 2,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
@@ -149,6 +150,7 @@ class _PetManagementScreenState extends State<PetManagementScreen> {
           color: Colors.blue.shade300,
           width: 1,
         ),
+
       ),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 20.0),
@@ -210,7 +212,7 @@ class _PetManagementScreenState extends State<PetManagementScreen> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        pet.breed.isNotEmpty ? pet.breed : pet.species,
+                        pet.breed,
                         style: TextStyle(
                           fontSize: 14,
                           color: Colors.grey[600],
@@ -259,7 +261,7 @@ class _PetManagementScreenState extends State<PetManagementScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        '나이: ${pet.age}살',
+                        '나이: ${pet.calculateAge()}살',
                         style: TextStyle(
                           fontSize: 14,
                           color: Colors.grey[700],

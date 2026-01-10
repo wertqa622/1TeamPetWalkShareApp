@@ -48,7 +48,8 @@ class _WalkTrackingScreenState extends State<WalkTrackingScreen> with SingleTick
   }
 
   Future<void> _initializeScreen() async {
-    await [Permission.location, Permission.notification].request();
+    await Permission.location.request();
+    await Permission.notification.request();
     _loadWalkHistory();
     _listenToBackgroundData();
     _checkActiveWalkStatus();
