@@ -17,17 +17,51 @@ class _LoginScreenState extends State<LoginScreen> {
 
   // 이메일 로그인
   Future<void> _login() async {
-    if (_emailController.text.isEmpty || _passwordController.text.isEmpty) return;
+    if (_emailController.text.isEmpty || _passwordController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('이메일과 비밀번호를 모두 입력해주세요.')),
+      );
+      return;
+    }
+
     setState(() { _isLoading = true; });
 
     try {
       await FirebaseAuth.instance.signInWithEmailAndPassword(
         email: _emailController.text.trim(),
         password: _passwordController.text.trim(),
-      ).timeout(const Duration(seconds: 5)); //로그인 타임아웃 5초
-      // 로그인 성공 시 AuthWrapper가 자동으로 MainScreen으로 이동
+      ).timeout(const Duration(seconds: 5));
+
     } on FirebaseAuthException catch (e) {
-      if(mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('로그인 실패: ${e.code}')));
+      String message = '';
+      switch (e.code) {
+        case 'user-not-found':
+          message = '존재하지 않는 계정입니다. 아래 회원가입 방법을 참고해주세요.';
+          break;
+        case 'wrong-password':
+          message = '비밀번호가 틀렸습니다.';
+          break;
+        case 'invalid-email':
+          message = '이메일 주소 형식이 올바르지 않습니다.';
+          break;
+        case 'invalid-credential':
+          message = '이메일 혹은 비밀번호가 틀렸거나, 존재하지 않는 계정입니다.';
+          break;
+        default:
+          message = '로그인 실패: ${e.code}';
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(message), backgroundColor: Colors.redAccent),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('오류가 발생했습니다: $e')),
+        );
+      }
     } finally {
       if (mounted) setState(() { _isLoading = false; });
     }
@@ -35,16 +69,39 @@ class _LoginScreenState extends State<LoginScreen> {
 
   // 회원가입
   Future<void> _signUp() async {
-    if (_emailController.text.isEmpty || _passwordController.text.isEmpty) return;
+    if (_emailController.text.isEmpty || _passwordController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('위 입력창에 가입할 이메일과 비밀번호를 입력해주세요.')),
+      );
+      return;
+    }
+
     try {
       await FirebaseAuth.instance.createUserWithEmailAndPassword(
         email: _emailController.text.trim(),
         password: _passwordController.text.trim(),
-      )
-          .timeout(const Duration(seconds: 5)); //회원가입 타임아웃 5초
-      if(mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('가입 성공!')));
+      ).timeout(const Duration(seconds: 5));
+
+      if(mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('가입 성공! 로그인 버튼을 눌러주세요.')),
+        );
+      }
     } on FirebaseAuthException catch (e) {
-      if(mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('가입 실패: ${e.message}')));
+      String message = '';
+      if (e.code == 'email-already-in-use') {
+        message = '이미 사용 중인 이메일입니다.';
+      } else if (e.code == 'weak-password') {
+        message = '비밀번호는 6자리 이상이어야 합니다.';
+      } else {
+        message = '가입 실패: ${e.message}';
+      }
+
+      if(mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(message)),
+        );
+      }
     }
   }
 
@@ -53,33 +110,25 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() { _isGoogleLoading = true; });
 
     try {
-      // 1. 구글 팝업 띄우기
       final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
 
       if (googleUser == null) {
         setState(() { _isGoogleLoading = false; });
-        return; // 사용자가 취소함
+        return;
       }
 
-      // 2. 인증 정보(토큰) 가져오기
       final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
-
-      // 3. 파이어베이스용 자격 증명 만들기
-      // (주의: 최신 버전은 accessToken이 필요 없고 idToken만 씁니다)
       final credential = GoogleAuthProvider.credential(
         idToken: googleAuth.idToken,
         accessToken: null,
       );
 
-      // 4. 파이어베이스 로그인
       await FirebaseAuth.instance.signInWithCredential(credential);
-      // 로그인 성공 시 AuthWrapper가 자동으로 MainScreen으로 이동
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('구글 로그인 실패: $e')),
       );
-      debugPrint('에러 상세: $e'); // 콘솔에서 에러 확인용
     } finally {
       if (mounted) setState(() { _isGoogleLoading = false; });
     }
@@ -98,9 +147,12 @@ class _LoginScreenState extends State<LoginScreen> {
               const SizedBox(height: 16),
               const Text('반려동물 산책 다이어리', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
               const SizedBox(height: 40),
+
+              // 입력 필드
               TextField(
                 controller: _emailController,
                 decoration: const InputDecoration(labelText: '이메일', border: OutlineInputBorder()),
+                keyboardType: TextInputType.emailAddress,
               ),
               const SizedBox(height: 16),
               TextField(
@@ -109,20 +161,56 @@ class _LoginScreenState extends State<LoginScreen> {
                 decoration: const InputDecoration(labelText: '비밀번호', border: OutlineInputBorder()),
               ),
               const SizedBox(height: 24),
+
+              // 로그인 버튼
               ElevatedButton(
                 onPressed: _isLoading ? null : _login,
                 style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 50)),
                 child: _isLoading ? const CircularProgressIndicator() : const Text('로그인'),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 12),
+
+              // 구글 로그인 버튼
               OutlinedButton(
                 onPressed: _isGoogleLoading ? null : _signInWithGoogle,
                 style: OutlinedButton.styleFrom(minimumSize: const Size(double.infinity, 50)),
                 child: _isGoogleLoading
                     ? const CircularProgressIndicator()
-                    : const Text('Google 로그인'),
+                    : const Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    // 구글 아이콘 대신 텍스트 (또는 아이콘 추가 가능)
+                    Text('Google 계정으로 로그인'),
+                  ],
+                ),
               ),
-              TextButton(onPressed: _signUp, child: const Text('회원가입')),
+
+              const SizedBox(height: 40),
+              const Divider(),
+              const SizedBox(height: 10),
+
+              // [수정됨] 회원가입 안내 섹션
+              Column(
+                children: [
+                  const Text(
+                    "아직 계정이 없으신가요?",
+                    style: TextStyle(color: Colors.grey, fontSize: 14),
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    "위 입력창에 이메일과 비밀번호를 입력 후,\n아래 버튼을 누르면 바로 가입됩니다.",
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Colors.grey, fontSize: 12),
+                  ),
+                  TextButton(
+                    onPressed: _signUp,
+                    child: const Text(
+                      '입력한 정보로 회원가입',
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                    ),
+                  ),
+                ],
+              ),
             ],
           ),
         ),

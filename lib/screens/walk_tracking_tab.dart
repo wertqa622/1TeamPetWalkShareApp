@@ -4,6 +4,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
@@ -41,6 +42,7 @@ class _WalkTrackingTabState extends State<WalkTrackingTab>
   XFile? _pickedImage;
 
   Set<Marker> _markers = {};
+  // 내 아이콘 관련 변수는 이제 안 쓰지만, 나중에 쓸 수도 있으니 남겨두거나 삭제해도 무방합니다.
   BitmapDescriptor? _myPetIcon;
   static final Map<String, BitmapDescriptor> _globalMarkerCache = {};
   static final Map<String, Future<BitmapDescriptor>> _iconFutureCache = {};
@@ -56,11 +58,30 @@ class _WalkTrackingTabState extends State<WalkTrackingTab>
   }
 
   Future<void> _initializeWalkSystem() async {
-    await _loadLastWalkLocation();
     await _checkInitialPermission();
-    await _syncServiceAndUI();
-    _loadMyPetMarker();
     if (_curLatLng == null) _fetchCurrentLocationOnce();
+
+    await _loadLastWalkLocation();
+    await _syncServiceAndUI();
+    // _loadMyPetMarker(); // 내 마커 안 쓰므로 굳이 로드할 필요 없음
+  }
+
+  Future<void> _fetchCurrentLocationOnce() async {
+    try {
+      Position pos = await Geolocator.getCurrentPosition(
+          locationSettings: const LocationSettings(accuracy: LocationAccuracy.high)
+      );
+
+      if (mounted) {
+        setState(() => _curLatLng = LatLng(pos.latitude, pos.longitude));
+
+        _mapController?.animateCamera(
+            CameraUpdate.newLatLngZoom(_curLatLng!, 17)
+        );
+      }
+    } catch (e) {
+      debugPrint("현재 위치 가져오기 실패: $e");
+    }
   }
 
   Future<void> _loadLastWalkLocation() async {
@@ -74,8 +95,10 @@ class _WalkTrackingTabState extends State<WalkTrackingTab>
         if (routeJson != null) {
           final List<dynamic> routeList = jsonDecode(routeJson);
           if (routeList.isNotEmpty) {
-            setState(() =>
-            _curLatLng = LatLng(routeList.last['lat'], routeList.last['lng']));
+            if (!_isWalking && _curLatLng == null) {
+              setState(() =>
+              _curLatLng = LatLng(routeList.last['lat'], routeList.last['lng']));
+            }
           }
         }
       }
@@ -83,77 +106,78 @@ class _WalkTrackingTabState extends State<WalkTrackingTab>
   }
 
   Future<void> _startWalk() async {
-    // 기존의 Permission.request() 코드들을 아래 한 줄로 대체하거나 생략 가능합니다.
-    final status = await Permission.location.status;
+    Map<Permission, PermissionStatus> statuses = await [
+      Permission.location,
+      Permission.notification,
+    ].request();
 
-    if (!status.isGranted) {
+    if (statuses[Permission.location]!.isDenied ||
+        statuses[Permission.notification]!.isDenied) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('설정에서 위치 권한을 허용해주세요.'))
+            const SnackBar(content: Text('위치 및 알림 권한을 허용해주세요.'))
         );
       }
       return;
     }
 
-    // 1. UI 선반영
     setState(() {
       _isWalking = true;
       _curDuration = 0;
       _curDistance = 0.0;
       _curPath = [];
+      _markers = {};
     });
 
-    // 2. [튕김 방지 핵심] OS 권한 승인 전파를 위한 800ms 대기
-    await Future.delayed(const Duration(milliseconds: 800));
-
-    // 3. 지도 레이어 활성화
+    await Future.delayed(const Duration(milliseconds: 500));
     if (mounted) setState(() => _isPermissionReady = true);
+
+    Position pos = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high)
+    );
+
+    if (mounted) {
+      _curLatLng = LatLng(pos.latitude, pos.longitude);
+      _mapController?.animateCamera(
+          CameraUpdate.newLatLngZoom(_curLatLng!, 17));
+    }
+
+    await FirebaseFirestore.instance
+        .collection('users')
+        .doc(widget.userId)
+        .update({
+      'walkingStatus': 'on',
+      'latitude': pos.latitude,
+      'longitude': pos.longitude,
+      'lastUpdated': FieldValue.serverTimestamp(),
+    });
 
     final service = FlutterBackgroundService();
     _actualStartTime = DateTime.now();
 
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('is_walking', true);
-    await prefs.setString(
-        'walk_start_time', _actualStartTime!.toIso8601String());
+    await prefs.setString('walk_start_time', _actualStartTime!.toIso8601String());
     await prefs.setString('current_user_id', widget.userId);
 
-    await FirebaseFirestore.instance
-        .collection('users')
-        .doc(widget.userId)
-        .update({'walkingStatus': 'on'});
-
-    // 서비스에 산책 시작 신호 전달 (알림 내용 변경됨)
     service.invoke('setWalkingStatus', {'isWalking': true});
 
     _startTimer();
     _listenToBackground();
     _startNearbyUsersListener();
-
-    Geolocator.getCurrentPosition(locationSettings: const LocationSettings(
-        accuracy: LocationAccuracy.high))
-        .then((pos) {
-      if (mounted) {
-        _curLatLng = LatLng(pos.latitude, pos.longitude);
-        _mapController?.animateCamera(
-            CameraUpdate.newLatLngZoom(_curLatLng!, 17));
-      }
-    });
   }
 
   void _stopWalk() {
-    _uiTimer?.cancel();
-
-    FlutterBackgroundService().invoke('setWalkingStatus', {'isWalking': false});
-
     if (_curDuration < 60) {
       showDialog(context: context, builder: (ctx) =>
           AlertDialog(
             title: const Text('산책 종료 확인'),
             content: const Text('산책 시간이 1분 미만입니다. 취소할까요?'),
             actions: [
-              TextButton(onPressed: () => Navigator.pop(ctx),
-                  child: const Text('계속하기')),
+              TextButton(onPressed: () {
+                Navigator.pop(ctx);
+                _startNearbyUsersListener();
+              }, child: const Text('계속하기')),
               TextButton(onPressed: () async {
                 Navigator.pop(ctx);
                 await _resetToIdle();
@@ -161,22 +185,24 @@ class _WalkTrackingTabState extends State<WalkTrackingTab>
             ],
           ));
     } else {
+      _uiTimer?.cancel();
+      FlutterBackgroundService().invoke('setWalkingStatus', {'isWalking': false});
       _showSaveModal();
     }
   }
 
   Future<void> _resetToIdle() async {
     _uiTimer?.cancel();
-    _nearbyUsersSub?.cancel();
     _bgUpdateSub?.cancel();
+    _nearbyUsersSub?.cancel();
 
-    // 서비스는 끄지 않고 '상태'만 종료로 변경 (알림을 '준비중'으로 되돌림)
     FlutterBackgroundService().invoke('setWalkingStatus', {'isWalking': false});
 
     await FirebaseFirestore.instance
         .collection('users')
         .doc(widget.userId)
         .update({'walkingStatus': 'off'});
+
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('is_walking', false);
 
@@ -219,10 +245,7 @@ class _WalkTrackingTabState extends State<WalkTrackingTab>
         final double newLng = (event['lng'] as num).toDouble();
         final LatLng newLatLng = LatLng(newLat, newLng);
 
-        // 1. 거리가 멀면 카메라 이동
         _mapController?.animateCamera(CameraUpdate.newLatLng(newLatLng));
-
-        // 2. 마커 이동 애니메이션 실행 (부드러운 이동 핵심)
         _animateMarkerMove(_curLatLng ?? newLatLng, newLatLng);
 
         setState(() {
@@ -241,47 +264,48 @@ class _WalkTrackingTabState extends State<WalkTrackingTab>
   void _startNearbyUsersListener() {
     if (!_isWalking) return;
     _nearbyUsersSub?.cancel();
-    _nearbyUsersSub = FirebaseFirestore.instance.collection('users').where(
-        'walkingStatus', isEqualTo: 'on').snapshots().listen((snapshot) async {
+
+    _nearbyUsersSub = FirebaseFirestore.instance
+        .collection('users')
+        .where('walkingStatus', isEqualTo: 'on')
+        .snapshots()
+        .listen((snapshot) {
+
       Set<Marker> newMarkers = {};
-      if (_curLatLng != null) {
-        newMarkers.add(Marker(markerId: const MarkerId('me'),
-            position: _curLatLng!,
-            icon: _myPetIcon ?? BitmapDescriptor.defaultMarkerWithHue(
-                BitmapDescriptor.hueAzure),
-            anchor: const Offset(0.5, 0.5),
-            zIndex: 2));
-      }
+
+      // [삭제됨] 내 마커(markerId: 'me') 추가 로직 제거
+      // 이제 내 위치는 GoogleMap의 myLocationEnabled=true 파란 점으로만 표시됩니다.
+
       for (var doc in snapshot.docs) {
-        if (doc.id == widget.userId) continue;
+        final userId = doc.id;
         final data = doc.data();
-        if (data['latitude'] == null) continue;
-        double dist = Geolocator.distanceBetween(
-            _curLatLng?.latitude ?? 0, _curLatLng?.longitude ?? 0,
-            (data['latitude'] as num).toDouble(),
-            (data['longitude'] as num).toDouble());
-        if (dist <= 1000) {
-          final petSnap = await FirebaseFirestore.instance
-              .collection('pets')
-              .where('userId', isEqualTo: doc.id)
-              .where('isRepresentative', isEqualTo: true)
-              .limit(1)
-              .get();
-          BitmapDescriptor icon = BitmapDescriptor.defaultMarkerWithHue(
-              BitmapDescriptor.hueAzure);
-          if (petSnap.docs.isNotEmpty) {
-            String? pUrl = petSnap.docs.first.data()['imageUrl'];
-            if (pUrl != null) icon = await _getCircularMarker(pUrl);
-          }
-          newMarkers.add(Marker(markerId: MarkerId(doc.id),
-              position: LatLng((data['latitude'] as num).toDouble(),
-                  (data['longitude'] as num).toDouble()),
-              icon: icon,
-              anchor: const Offset(0.5, 0.5),
-              infoWindow: InfoWindow(title: data['nickname'])));
-        }
+
+        if (userId == widget.userId) continue;
+
+        if (data['latitude'] == null || data['longitude'] == null) continue;
+
+        final double lat = (data['latitude'] as num).toDouble();
+        final double lng = (data['longitude'] as num).toDouble();
+        final String nickname = data['nickname'] ?? '이웃 산책러';
+
+        newMarkers.add(Marker(
+          markerId: MarkerId(userId),
+          position: LatLng(lat, lng),
+          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRose),
+          infoWindow: InfoWindow(
+            title: nickname,
+            snippet: "현재 산책 중 🐾",
+          ),
+        ));
       }
-      if (mounted) setState(() => _markers = newMarkers);
+
+      if (mounted) {
+        setState(() {
+          _markers = newMarkers;
+        });
+      }
+    }, onError: (e) {
+      debugPrint("🔥 Firestore 리스너 에러: $e");
     });
   }
 
@@ -391,21 +415,23 @@ class _WalkTrackingTabState extends State<WalkTrackingTab>
       Expanded(child: GoogleMap(
           initialCameraPosition: CameraPosition(
               target: _curLatLng ?? const LatLng(37.5665, 126.9780), zoom: 16),
-          onMapCreated: (c) => _mapController = c,
-          myLocationEnabled: false,
-          // 기본 파란 점 비활성화
+          onMapCreated: (c) {
+            _mapController = c;
+            if (_curLatLng != null) {
+              c.animateCamera(CameraUpdate.newLatLngZoom(_curLatLng!, 17));
+            }
+          },
+          // 내 위치 파란 점 표시
+          myLocationEnabled: true,
+          myLocationButtonEnabled: true,
+
+          gestureRecognizers: {
+            Factory<OneSequenceGestureRecognizer>(() => EagerGestureRecognizer()),
+          },
+
           markers: {
-            ..._markers, // 주변 사용자들 마커
-            if (_curLatLng != null) // 내 위치에 내 대표 펫 마커 추가
-              Marker(
-                markerId: const MarkerId('me'),
-                position: _curLatLng!,
-                // 아이콘이 로드 전이면 기본 마커, 로드 후엔 펫 사진
-                icon: _myPetIcon ?? BitmapDescriptor.defaultMarkerWithHue(
-                    BitmapDescriptor.hueAzure),
-                anchor: const Offset(0.5, 0.5),
-                zIndex: 10, // 다른 마커보다 항상 위에 표시
-              ),
+            ..._markers,
+            // [삭제됨] 내 마커('me') 표시 코드 제거
           },
           polylines: {
             Polyline(polylineId: const PolylineId('p'),
@@ -428,10 +454,14 @@ class _WalkTrackingTabState extends State<WalkTrackingTab>
     ]);
   }
 
-  /// 초기 권한 상태 확인 및 UI 반영
   Future<void> _checkInitialPermission() async {
     final status = await Permission.location.status;
-    if (status.isGranted && mounted) setState(() => _isPermissionReady = true);
+    if (status.isGranted && mounted) {
+      setState(() => _isPermissionReady = true);
+    } else {
+      await Permission.location.request();
+      if (mounted) setState(() => _isPermissionReady = true);
+    }
   }
 
   Future<void> _syncServiceAndUI() async {
@@ -452,29 +482,8 @@ class _WalkTrackingTabState extends State<WalkTrackingTab>
     }
   }
 
-  Future<void> _fetchCurrentLocationOnce() async {
-    try {
-      Position pos = await Geolocator.getCurrentPosition(locationSettings: const LocationSettings(accuracy: LocationAccuracy.low));
-      if (mounted) setState(() => _curLatLng = LatLng(pos.latitude, pos.longitude));
-    } catch (e) {}
-  }
-
   void _loadMyPetMarker() async {
-    final petSnap = await FirebaseFirestore.instance.collection('pets')
-        .where('userId', isEqualTo: widget.userId)
-        .where('isRepresentative', isEqualTo: true).limit(1).get();
-
-    if (petSnap.docs.isNotEmpty) {
-      String? url = petSnap.docs.first.data()['imageUrl'];
-      if (url != null) {
-        if (_globalMarkerCache.containsKey(url)) {
-          if (mounted) setState(() => _myPetIcon = _globalMarkerCache[url]);
-          return;
-        }
-        final icon = await _getCircularMarker(url);
-        if (mounted) setState(() => _myPetIcon = icon);
-      }
-    }
+    // 내 마커 로직은 삭제했지만 코드는 남겨둠 (필요 시 주석 해제)
   }
 
   void _animateMarkerMove(LatLng start, LatLng end) {

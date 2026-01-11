@@ -974,7 +974,8 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) => Container(
-        height: MediaQuery.of(context).size.height * 0.6,
+        // 높이를 화면의 90%까지 유동적으로 사용하도록 변경 (키보드 대응 원활)
+        height: MediaQuery.of(context).size.height * 0.9,
         decoration: const BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.only(
@@ -987,144 +988,148 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
             left: 16,
             right: 16,
             top: 16,
+            // 키보드 높이만큼 패딩 추가 (MediaQuery.of(context).viewInsets.bottom)
             bottom: MediaQuery.of(context).viewInsets.bottom + 16,
           ),
-          child: Form(
-            key: formKey,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // 헤더
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text(
-                      '프로필 수정',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
+          // [핵심 수정] 여기에 SingleChildScrollView를 추가하여 스크롤 가능하게 만듦
+          child: SingleChildScrollView(
+            child: Form(
+              key: formKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // 헤더
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        '프로필 수정',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.close),
-                      onPressed: () => Navigator.pop(context),
-                    ),
-                  ],
-                ),
-                const Divider(),
-                const SizedBox(height: 16),
-                // 닉네임 입력 필드
-                TextFormField(
-                  controller: nicknameController,
-                  decoration: InputDecoration(
-                    labelText: '닉네임',
-                    hintText: '닉네임을 입력하세요',
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    prefixIcon: const Icon(Icons.person),
+                      IconButton(
+                        icon: const Icon(Icons.close),
+                        onPressed: () => Navigator.pop(context),
+                      ),
+                    ],
                   ),
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return '닉네임을 입력해주세요';
-                    }
-                    if (value.trim().length > 20) {
-                      return '닉네임은 20자 이하여야 합니다';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 16),
-                // 한줄소개 입력 필드
-                TextFormField(
-                  controller: bioController,
-                  decoration: InputDecoration(
-                    labelText: '한줄소개',
-                    hintText: '자신을 소개해주세요',
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    prefixIcon: const Icon(Icons.description),
-                  ),
-                  maxLines: 3,
-                  maxLength: 100,
-                  validator: (value) {
-                    if (value != null && value.trim().length > 100) {
-                      return '한줄소개는 100자 이하여야 합니다';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 24),
-                // 저장 버튼
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: () async {
-                      if (formKey.currentState!.validate()) {
-                        final updatedUser = _currentUser.copyWith(
-                          nickname: nicknameController.text.trim(),
-                          bio: bioController.text.trim(),
-                        );
-                        
-                        setState(() {
-                          _currentUser = updatedUser;
-                        });
-                        
-                        try {
-                          // Firestore에 저장
-                          await FirebaseFirestore.instance
-                              .collection('users')
-                              .doc(_currentUser.id)
-                              .update({
-                            'nickname': updatedUser.nickname,
-                            'bio': updatedUser.bio,
-                          });
-                          
-                          await StorageService.saveCurrentUser(updatedUser);
-                          widget.onUserUpdate(updatedUser);
-                          
-                          if (context.mounted) {
-                            Navigator.pop(context);
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('프로필이 수정되었습니다'),
-                                backgroundColor: Colors.green,
-                              ),
-                            );
-                          }
-                        } catch (e) {
-                          debugPrint('프로필 수정 실패: $e');
-                          if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text('프로필 수정 실패: $e'),
-                                backgroundColor: Colors.red,
-                              ),
-                            );
-                          }
-                        }
-                      }
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF2563EB),
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(
+                  const Divider(),
+                  const SizedBox(height: 16),
+                  // 닉네임 입력 필드
+                  TextFormField(
+                    controller: nicknameController,
+                    decoration: InputDecoration(
+                      labelText: '닉네임',
+                      hintText: '닉네임을 입력하세요',
+                      border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(8),
                       ),
+                      prefixIcon: const Icon(Icons.person),
                     ),
-                    child: const Text(
-                      '저장',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return '닉네임을 입력해주세요';
+                      }
+                      if (value.trim().length > 20) {
+                        return '닉네임은 20자 이하여야 합니다';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  // 한줄소개 입력 필드
+                  TextFormField(
+                    controller: bioController,
+                    decoration: InputDecoration(
+                      labelText: '한줄소개',
+                      hintText: '자신을 소개해주세요',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      prefixIcon: const Icon(Icons.description),
+                    ),
+                    maxLines: 3,
+                    maxLength: 100,
+                    validator: (value) {
+                      if (value != null && value.trim().length > 100) {
+                        return '한줄소개는 100자 이하여야 합니다';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 24),
+                  // 저장 버튼
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () async {
+                        if (formKey.currentState!.validate()) {
+                          final updatedUser = _currentUser.copyWith(
+                            nickname: nicknameController.text.trim(),
+                            bio: bioController.text.trim(),
+                          );
+
+                          setState(() {
+                            _currentUser = updatedUser;
+                          });
+
+                          try {
+                            // Firestore에 저장
+                            await FirebaseFirestore.instance
+                                .collection('users')
+                                .doc(_currentUser.id)
+                                .update({
+                              'nickname': updatedUser.nickname,
+                              'bio': updatedUser.bio,
+                            });
+
+                            await StorageService.saveCurrentUser(updatedUser);
+                            widget.onUserUpdate(updatedUser);
+
+                            if (context.mounted) {
+                              Navigator.pop(context);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('프로필이 수정되었습니다'),
+                                  backgroundColor: Colors.green,
+                                ),
+                              );
+                            }
+                          } catch (e) {
+                            debugPrint('프로필 수정 실패: $e');
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('프로필 수정 실패: $e'),
+                                  backgroundColor: Colors.red,
+                                ),
+                              );
+                            }
+                          }
+                        }
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF2563EB),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      child: const Text(
+                        '저장',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
