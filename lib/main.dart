@@ -7,6 +7,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'firebase_options.dart';
 import 'services/backgroundservice.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_background_service/flutter_background_service.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 // 화면들 import
 import 'screens/login_screen.dart';
@@ -18,12 +21,13 @@ import 'models/user.dart' as model; // User 모델 이름 충돌 방지
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
-  // 1. Firebase 초기화
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  await [
+    Permission.location,
+    Permission.notification,
+  ].request();
+
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
   // 2. 백그라운드 서비스 초기화 (위치 추적용)
   await initializeService();
@@ -104,7 +108,7 @@ class MainScreen extends StatefulWidget {
   State<MainScreen> createState() => _MainScreenState();
 }
 
-class _MainScreenState extends State<MainScreen> {
+class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
   int _currentIndex = 0;
   final String _uid = FirebaseAuth.instance.currentUser!.uid;
 
@@ -118,7 +122,28 @@ class _MainScreenState extends State<MainScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _loadUserData();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this); // 관찰자 해제
+    super.dispose();
+  }
+
+  // 앱 종료 상태 감지 (Safe Care 핵심 로직)
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) async {
+    if (state == AppLifecycleState.detached) {
+      final prefs = await SharedPreferences.getInstance();
+      final isWalking = prefs.getBool('is_walking') ?? false;
+
+      // 산책 중이 아닐 때만 앱 종료 시 알림/서비스 제거
+      if (!isWalking) {
+        FlutterBackgroundService().invoke('stopService');
+      }
+    }
   }
 
   Future<void> _loadUserData() async {
