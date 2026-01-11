@@ -31,7 +31,7 @@ android {
     }
 
     kotlinOptions {
-        jvmTarget = JavaVersion.VERSION_17.toString()
+        jvmTarget = "17"
     }
 
     defaultConfig {
@@ -56,6 +56,8 @@ android {
             signingConfig = signingConfigs.getByName("release")
 
             isMinifyEnabled = false // 필요 시 true로 변경 (코드 난독화)
+            isShrinkResources = false
+
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -73,5 +75,16 @@ flutter {
 
 // ▼ [추가] 파일 맨 아래에 dependencies 블록을 추가하여 디슈가링 라이브러리를 지정합니다.
 dependencies {
+    // 1. 구형 안드로이드 지원 라이브러리 (기존 유지)
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.3")
+
+    // 2. Firebase BoM (버전 관리 도구) 추가 [이미지 가이드 반영]
+    implementation(platform("com.google.firebase:firebase-bom:34.7.0"))
+
+    // 3. Firebase Analytics 및 필요한 라이브러리 추가 [이미지 가이드 반영]
+    implementation("com.google.firebase:firebase-analytics")
+
+    // 💡 Safe Care에 꼭 필요한 추가 라이브러리
+    implementation("com.google.firebase:firebase-auth")     // 로그인용
+    implementation("com.google.firebase:firebase-firestore") // 데이터베이스용
 }
