@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
-import 'package:share_plus/share_plus.dart'; // [필수] 공유 기능을 위해 추가
+import 'package:share_plus/share_plus.dart';
+import 'package:geolocator/geolocator.dart'; // [필수] 위치 기능
+
 import '../models/user.dart';
 import '../models/walk.dart';
 import '../services/walk_service.dart';
@@ -21,7 +23,7 @@ class SocialFeedScreen extends StatefulWidget {
 
 class _SocialFeedScreenState extends State<SocialFeedScreen> {
   List<Walk> _walks = [];
-  Map<String, User> _userMap = {}; // userId -> User 매핑
+  Map<String, User> _userMap = {};
   bool _isLoading = false;
 
   @override
@@ -37,13 +39,9 @@ class _SocialFeedScreenState extends State<SocialFeedScreen> {
     });
 
     try {
-      // 1. 내가 팔로우한 사용자들의 ID 목록 가져오기
       Set<String> targetUserIds = await FollowService.getFollowingIds(widget.currentUser.id);
-
-      // 내 게시글도 피드에 포함 (선택사항 - 필요 없으면 주석 처리)
       targetUserIds.add(widget.currentUser.id);
 
-      // 팔로우한 사람이 없으면 빈 화면 표시
       if (targetUserIds.isEmpty) {
         if (mounted) {
           setState(() {
@@ -55,7 +53,6 @@ class _SocialFeedScreenState extends State<SocialFeedScreen> {
         return;
       }
 
-      // 2. Firestore 'whereIn' 쿼리 제한(최대 10개) 해결을 위한 Chunking(쪼개기) 로직
       List<String> idList = targetUserIds.toList();
       List<List<String>> chunks = [];
       int chunkSize = 10;
@@ -67,13 +64,12 @@ class _SocialFeedScreenState extends State<SocialFeedScreen> {
 
       List<QueryDocumentSnapshot> allDocs = [];
 
-      // 병렬로 쿼리 실행
       List<Future<QuerySnapshot>> futures = chunks.map((chunk) {
         return FirebaseFirestore.instance
             .collection('walks')
             .where('userId', whereIn: chunk)
             .orderBy('startTime', descending: true)
-            .limit(10) // 각 덩어리당 최근 10개씩 (조절 가능)
+            .limit(10)
             .get();
       }).toList();
 
@@ -82,20 +78,17 @@ class _SocialFeedScreenState extends State<SocialFeedScreen> {
         allDocs.addAll(snapshot.docs);
       }
 
-      // 3. 메모리 상에서 전체 다시 정렬 (여러 쿼리를 합쳤으므로 순서가 섞일 수 있음)
       allDocs.sort((a, b) {
         String timeA = a['startTime'];
         String timeB = b['startTime'];
-        return timeB.compareTo(timeA); // 최신순 정렬
+        return timeB.compareTo(timeA);
       });
 
-      // 4. 차단 필터링 적용 (WalkService에 구현된 로직 사용)
       final filteredWalks = await WalkService.filterBlockedUsersWalks(
         allDocs,
         widget.currentUser.id,
       );
 
-      // 5. walks의 작성자 정보 가져오기
       final userIds = filteredWalks.map((walk) => walk.userId).toSet();
       final userMap = <String, User>{};
 
@@ -132,6 +125,232 @@ class _SocialFeedScreenState extends State<SocialFeedScreen> {
     }
   }
 
+  // 통합된 검색 로직 (권한/위치/DB검색 모두 포함)
+  Future<List<Map<String, dynamic>>> _loadNearbyWalkers() async {
+    // 1. 위치 서비스 및 권한 확인
+    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      // 서비스가 꺼져있으면 켜달라는 예외 발생 (사용자에게 알림용)
+      throw Exception('위치 서비스를 켜주세요.');
+    }
+
+    LocationPermission permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) {
+        throw Exception('위치 권한이 거부되었습니다.');
+      }
+    }
+
+    if (permission == LocationPermission.deniedForever) {
+      throw Exception('설정에서 위치 권한을 허용해주세요.');
+    }
+
+    // 2. 현재 위치 가져오기
+    Position currentPosition = await Geolocator.getCurrentPosition(
+      desiredAccuracy: LocationAccuracy.high,
+    );
+
+    // 3. Firestore 검색 및 필터링 수행
+    return _fetchNearbyWalkers(currentPosition);
+  }
+
+  // 모달 띄우기
+  void _showNearbyWalkersModal() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        height: MediaQuery.of(context).size.height * 0.6,
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.only(
+            topLeft: Radius.circular(20),
+            topRight: Radius.circular(20),
+          ),
+        ),
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    '내 주변 1km 산책러 🐕',
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+            Expanded(
+              child: FutureBuilder<List<Map<String, dynamic>>>(
+                // 여기서 모든 로직을 수행
+                future: _loadNearbyWalkers(),
+                builder: (context, snapshot) {
+                  // 로딩 중 표시
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          CircularProgressIndicator(),
+                          SizedBox(height: 16),
+                          Text(
+                            '내 위치 확인 및 주변 친구 찾는 중...',
+                            style: TextStyle(color: Colors.grey),
+                          ),
+                        ],
+                      ),
+                    );
+                  }
+
+                  // 에러 처리
+                  if (snapshot.hasError) {
+                    return Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: Text(
+                          '${snapshot.error}'.replaceAll('Exception: ', ''),
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(color: Colors.red),
+                        ),
+                      ),
+                    );
+                  }
+
+                  final nearbyUsers = snapshot.data ?? [];
+
+                  if (nearbyUsers.isEmpty) {
+                    return Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.map_outlined, size: 48, color: Colors.grey[300]),
+                          const SizedBox(height: 16),
+                          const Text(
+                            '반경 1km 내에 산책 중인 이웃이 없어요.\n먼저 산책을 시작해보세요!',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(color: Colors.grey),
+                          ),
+                        ],
+                      ),
+                    );
+                  }
+
+                  return ListView.builder(
+                    itemCount: nearbyUsers.length,
+                    itemBuilder: (context, index) {
+                      final data = nearbyUsers[index];
+                      final User user = data['user'];
+                      final double distance = data['distance'];
+
+                      return ListTile(
+                        leading: CircleAvatar(
+                          backgroundColor: Colors.blue[100],
+                          child: const Icon(Icons.person, color: Colors.blue),
+                        ),
+                        title: Text(
+                          user.nickname,
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        subtitle: Text(
+                          user.bio.isNotEmpty ? user.bio : '안녕하세요!',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        trailing: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            const Text(
+                              '산책중',
+                              style: TextStyle(
+                                color: Colors.green,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 12,
+                              ),
+                            ),
+                            Text(
+                              '${distance.toInt()}m',
+                              style: TextStyle(
+                                color: Colors.grey[600],
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                        onTap: () {
+                          // 상세 프로필 이동 등 필요 시 구현
+                        },
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // [수정됨] Firestore 데이터 가져오기 및 거리 필터링 (순수 로직)
+  Future<List<Map<String, dynamic>>> _fetchNearbyWalkers(Position myPos) async {
+    try {
+      // 1. 산책 중인 상태 값 수정 ('walking' -> 'on')
+      final snapshot = await FirebaseFirestore.instance
+          .collection('users')
+          .where('walkingStatus', isEqualTo: 'on')
+          .get();
+
+      List<Map<String, dynamic>> result = [];
+
+      for (var doc in snapshot.docs) {
+        // 나 자신은 제외
+        if (doc.id == widget.currentUser.id) continue;
+
+        final data = doc.data();
+
+        // 2. 위치 데이터 필드 수정 (lastLocation -> latitude, longitude)
+        if (data['latitude'] == null || data['longitude'] == null) continue;
+
+        double otherLat = (data['latitude'] as num).toDouble();
+        double otherLng = (data['longitude'] as num).toDouble();
+
+        // 3. 거리 계산 (미터 단위)
+        double distanceInMeters = Geolocator.distanceBetween(
+          myPos.latitude,
+          myPos.longitude,
+          otherLat,
+          otherLng,
+        );
+
+        // 4. 1km (1000m) 이내 필터링
+        if (distanceInMeters <= 1000) {
+          result.add({
+            'user': User.fromJson(data),
+            'distance': distanceInMeters,
+          });
+        }
+      }
+
+      // 가까운 순서대로 정렬
+      result.sort((a, b) => (a['distance'] as double).compareTo(b['distance'] as double));
+
+      return result;
+    } catch (e) {
+      debugPrint('주변 유저 검색 실패: $e');
+      return [];
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -152,10 +371,20 @@ class _SocialFeedScreenState extends State<SocialFeedScreen> {
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-                    IconButton(
-                      icon: const Icon(Icons.refresh),
-                      onPressed: _loadFeed,
-                      tooltip: '새로고침',
+                    // [수정됨] 주변 찾기 버튼 + 새로고침 버튼
+                    Row(
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.map_outlined, color: Colors.blue),
+                          tooltip: '내 주변 산책러 찾기',
+                          onPressed: _showNearbyWalkersModal,
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.refresh),
+                          onPressed: _loadFeed,
+                          tooltip: '새로고침',
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -209,7 +438,6 @@ class _SocialFeedScreenState extends State<SocialFeedScreen> {
                     final walk = _walks[index];
                     final user = _userMap[walk.userId];
 
-                    // [수정됨] 별도의 위젯으로 분리하여 좋아요 상태 관리
                     return WalkCard(
                       walk: walk,
                       user: user,
@@ -226,7 +454,7 @@ class _SocialFeedScreenState extends State<SocialFeedScreen> {
   }
 }
 
-/// [추가됨] 좋아요와 공유 기능을 관리하기 위한 별도 카드 위젯
+/// 좋아요와 공유 기능을 관리하기 위한 별도 카드 위젯
 class WalkCard extends StatefulWidget {
   final Walk walk;
   final User? user;
@@ -251,7 +479,7 @@ class _WalkCardState extends State<WalkCard> {
   @override
   void initState() {
     super.initState();
-    _likeCount = widget.walk.likeCount; // Walk 모델에 likeCount가 있어야 함
+    _likeCount = widget.walk.likeCount;
     _checkIfLiked();
   }
 
@@ -272,7 +500,6 @@ class _WalkCardState extends State<WalkCard> {
 
   // 좋아요 버튼 클릭 핸들러
   Future<void> _handleLike() async {
-    // 낙관적 업데이트 (UI 먼저 반영)
     setState(() {
       _isLiked = !_isLiked;
       _likeCount += _isLiked ? 1 : -1;
@@ -281,7 +508,6 @@ class _WalkCardState extends State<WalkCard> {
     try {
       await WalkService.toggleLike(widget.walk.id, widget.currentUserId);
     } catch (e) {
-      // 실패 시 롤백
       if (mounted) {
         setState(() {
           _isLiked = !_isLiked;
@@ -348,7 +574,6 @@ class _WalkCardState extends State<WalkCard> {
                     ],
                   ),
                 ),
-                // [공유 버튼 추가]
                 IconButton(
                   icon: const Icon(Icons.share_outlined, color: Colors.grey),
                   onPressed: _handleShare,
