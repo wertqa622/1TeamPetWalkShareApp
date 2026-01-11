@@ -6,10 +6,21 @@ plugins {
 }
 
 android {
-    namespace = "com.example.untitled1"
+    namespace = "com.example.petWalkShare"
 
     // [1] 컴파일 버전을 34로 고정 (기존: flutter.compileSdkVersion)
     compileSdk = 36
+
+    signingConfigs {
+        create("release") {
+            // 키스토어 파일이 android/app 폴더에 있으므로 파일명만 적으면 됩니다.
+            storeFile = file("upload-keystore.jks")
+
+            storePassword = "123456"
+            keyAlias = "upload"
+            keyPassword = "123456"
+        }
+    }
 
     ndkVersion = flutter.ndkVersion
 
@@ -24,7 +35,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.example.untitled1"
+        applicationId = "com.example.petWalkShare"
 
         // [2] 최소 버전을 21로 고정 (기존: flutter.minSdkVersion)
         minSdk = flutter.minSdkVersion
@@ -40,7 +51,17 @@ android {
     }
 
     buildTypes {
-        release {
+        getByName("release") {
+            // 2. release 빌드 시 위에서 만든 'release' 서명을 사용하도록 변경
+            signingConfig = signingConfigs.getByName("release")
+
+            isMinifyEnabled = false // 필요 시 true로 변경 (코드 난독화)
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
+        }
+        getByName("debug") {
             signingConfig = signingConfigs.getByName("debug")
         }
     }
