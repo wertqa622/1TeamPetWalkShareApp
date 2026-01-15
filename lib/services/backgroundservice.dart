@@ -17,10 +17,10 @@ final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin = FlutterL
 Future<void> initializeService() async {
   final service = FlutterBackgroundService();
 
-  // [추가] FlutterLocalNotificationsPlugin 초기화 (알람이 작동하려면 필수)
+  // 0. 알림 플러그인 초기화
   const AndroidInitializationSettings initializationSettingsAndroid =
-      AndroidInitializationSettings('@mipmap/ic_launcher');
-  
+  AndroidInitializationSettings('@mipmap/ic_launcher');
+
   const InitializationSettings initializationSettings = InitializationSettings(
     android: initializationSettingsAndroid,
   );
@@ -28,7 +28,6 @@ Future<void> initializeService() async {
   await flutterLocalNotificationsPlugin.initialize(
     initializationSettings,
     onDidReceiveNotificationResponse: (NotificationResponse response) {
-      // 알림 클릭 시 처리 (필요시)
       debugPrint('알림 클릭: ${response.payload}');
     },
   );
@@ -41,14 +40,14 @@ Future<void> initializeService() async {
     importance: Importance.low,
   );
 
-  // 2. [수정] 주변 이웃 알림용 채널 (진동/소리 강화)
+  // 2. 주변 이웃 알림용 채널 (진동/소리 강화)
   const AndroidNotificationChannel alertChannel = AndroidNotificationChannel(
-    'nearby_alert_channel_v2', // [중요] ID를 변경하여 새 설정을 강제 적용
+    'nearby_alert_channel_v2',
     '주변 산책 친구 알림',
     description: '근처에 산책 중인 이웃이 있으면 알려줍니다.',
-    importance: Importance.max, // [중요] Max로 설정해야 팝업이 확실히 뜸
+    importance: Importance.max,
     playSound: true,
-    enableVibration: true, // 진동 켜기
+    enableVibration: true,
   );
 
   await flutterLocalNotificationsPlugin
@@ -94,10 +93,12 @@ void onStart(ServiceInstance service) async {
 
   Map<String, DateTime> alertCooldowns = {};
 
+  // UI로부터 신호 수신
   service.on('setWalkingStatus').listen((event) {
     if (event != null) {
       isWalkingActive = event['isWalking'] ?? false;
       if (isWalkingActive) {
+        // [산책 시작]
         startTime = DateTime.now();
         totalDistance = 0.0;
         pathList = [];
@@ -110,23 +111,27 @@ void onStart(ServiceInstance service) async {
           );
         }
       } else {
+        // [산책 종료]
         if (service is AndroidServiceInstance) {
           service.setForegroundNotificationInfo(
             title: "산책 종료",
-            content: "수고하셨습니다!",
+            content: "수고하셨습니다! (대기 중)", // 문구 변경
           );
         }
-        service.stopSelf();
+        // ❌ [중요 수정] 여기서 service.stopSelf()를 호출하면 안 됩니다!
+        // 서비스를 죽이면 다음에 시작 버튼을 눌러도 반응하지 않습니다.
+        // service.stopSelf();  <-- 삭제됨
       }
     }
   });
 
+  // 앱이 완전히 종료될 때 호출되는 리스너 (여기서만 죽입니다)
   service.on('stopService').listen((event) {
     service.stopSelf();
   });
 
   Timer.periodic(const Duration(seconds: 10), (timer) async {
-    if (!isWalkingActive) return;
+    if (!isWalkingActive) return; // 산책 중이 아니면 로직 수행 안 함 (배터리 절약)
 
     try {
       final String? myUserId = prefs.getString('current_user_id');
@@ -180,6 +185,7 @@ void onStart(ServiceInstance service) async {
   });
 }
 
+// [기존 유지] 주변 유저 체크 및 알림 로직
 Future<void> _checkProximityAndNotify(
     String myId,
     double myLat,
@@ -228,21 +234,21 @@ Future<void> _checkProximityAndNotify(
   }
 }
 
-// [수정] 팝업 알림 설정 강화 (Priority.max, 진동)
+// [기존 유지] 알림 표시 함수
 Future<void> _showProximityNotification(int id, String nickname, int distance) async {
   const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
-    'nearby_alert_channel_v2', // 위에서 변경한 ID와 동일해야 함
+    'nearby_alert_channel_v2',
     '주변 산책 친구 알림',
     channelDescription: '근처에 산책 중인 이웃이 있으면 알려줍니다.',
-    importance: Importance.max, // [필수] 화면 팝업
-    priority: Priority.max,     // [필수] 최상위 우선순위
+    importance: Importance.max,
+    priority: Priority.max,
     showWhen: true,
-    enableVibration: true,      // [필수] 진동 켜기
+    enableVibration: true,
     color: Colors.blue,
     icon: '@mipmap/ic_launcher',
     ticker: '근처에 산책 친구가 있어요!',
-    category: AndroidNotificationCategory.social, // 카테고리 설정
-    fullScreenIntent: true, // [선택] 화면이 꺼져있을 때도 띄우기 시도
+    category: AndroidNotificationCategory.social,
+    fullScreenIntent: true,
   );
 
   const NotificationDetails details = NotificationDetails(android: androidDetails);
