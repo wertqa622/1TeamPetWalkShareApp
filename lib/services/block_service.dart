@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
+import '../utils/nickname_normalizer.dart';
 
 /// 차단 관련 서비스 클래스
 class BlockService {
@@ -65,15 +66,7 @@ class BlockService {
       }
 
       // Firestore 문서 ID에 사용할 수 없는 문자 제거/치환
-      // Firestore 문서 ID는 /, ?, #, [, ], * 문자를 사용할 수 없음
-      final blockedNickname = blockedNicknameRaw
-          .replaceAll('/', '_')
-          .replaceAll('?', '_')
-          .replaceAll('#', '_')
-          .replaceAll('[', '_')
-          .replaceAll(']', '_')
-          .replaceAll('*', '_')
-          .trim();
+      final blockedNickname = NicknameNormalizer.normalize(blockedNicknameRaw);
 
       // 차단한 사람(blocker)의 정보도 가져오기
       final blockerUserDoc = await _firestore
@@ -93,14 +86,7 @@ class BlockService {
       }
 
       // Firestore 문서 ID에 사용할 수 없는 문자 제거/치환
-      final blockerNickname = blockerNicknameRaw
-          .replaceAll('/', '_')
-          .replaceAll('?', '_')
-          .replaceAll('#', '_')
-          .replaceAll('[', '_')
-          .replaceAll(']', '_')
-          .replaceAll('*', '_')
-          .trim();
+      final blockerNickname = NicknameNormalizer.normalize(blockerNicknameRaw);
       
       final batch = _firestore.batch();
 
@@ -451,14 +437,7 @@ class BlockService {
       }
 
       // Firestore 문서 ID에 사용할 수 없는 문자 제거/치환
-      final blockedNickname = blockedNicknameRaw
-          .replaceAll('/', '_')
-          .replaceAll('?', '_')
-          .replaceAll('#', '_')
-          .replaceAll('[', '_')
-          .replaceAll(']', '_')
-          .replaceAll('*', '_')
-          .trim();
+      final blockedNickname = NicknameNormalizer.normalize(blockedNicknameRaw);
 
       debugPrint('차단 해제: blockedNickname = $blockedNickname (원본: $blockedNicknameRaw)');
 
@@ -482,14 +461,7 @@ class BlockService {
       }
 
       // Firestore 문서 ID에 사용할 수 없는 문자 제거/치환
-      final blockerNickname = blockerNicknameRaw
-          .replaceAll('/', '_')
-          .replaceAll('?', '_')
-          .replaceAll('#', '_')
-          .replaceAll('[', '_')
-          .replaceAll(']', '_')
-          .replaceAll('*', '_')
-          .trim();
+      final blockerNickname = NicknameNormalizer.normalize(blockerNicknameRaw);
 
       debugPrint('차단 해제: blockerNickname = $blockerNickname (원본: $blockerNicknameRaw)');
 
@@ -596,14 +568,7 @@ class BlockService {
       }
 
       // Firestore 문서 ID에 사용할 수 없는 문자 제거/치환
-      final userNickname = userNicknameRaw
-          .replaceAll('/', '_')
-          .replaceAll('?', '_')
-          .replaceAll('#', '_')
-          .replaceAll('[', '_')
-          .replaceAll(']', '_')
-          .replaceAll('*', '_')
-          .trim();
+      final userNickname = NicknameNormalizer.normalize(userNicknameRaw);
 
       // otherUserId의 a_user 컬렉션에서 userNickname 문서 확인
       final doc = await _firestore
@@ -641,14 +606,7 @@ class BlockService {
       }
 
       // Firestore 문서 ID에 사용할 수 없는 문자 제거/치환
-      final blockedNickname = blockedNicknameRaw
-          .replaceAll('/', '_')
-          .replaceAll('?', '_')
-          .replaceAll('#', '_')
-          .replaceAll('[', '_')
-          .replaceAll(']', '_')
-          .replaceAll('*', '_')
-          .trim();
+      final blockedNickname = NicknameNormalizer.normalize(blockedNicknameRaw);
 
       // blockerId의 a_user 컬렉션에서 blockedNickname 문서 확인
       final doc = await _firestore

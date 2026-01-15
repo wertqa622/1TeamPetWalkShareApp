@@ -1,6 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import '../models/user.dart';
+import '../utils/nickname_normalizer.dart';
+import '../utils/user_converter.dart';
 import 'block_service.dart';
 
 /// 팔로우 관련 서비스 클래스
@@ -74,14 +76,7 @@ class FollowService {
         throw Exception('팔로우할 유저의 닉네임을 찾을 수 없습니다: $followingId');
       }
       
-      final followingNickname = followingNicknameRaw
-          .replaceAll('/', '_')
-          .replaceAll('?', '_')
-          .replaceAll('#', '_')
-          .replaceAll('[', '_')
-          .replaceAll(']', '_')
-          .replaceAll('*', '_')
-          .trim();
+      final followingNickname = NicknameNormalizer.normalize(followingNicknameRaw);
       
       final followingRef = _firestore
           .collection('users')
@@ -154,14 +149,7 @@ class FollowService {
         throw Exception('언팔로우할 유저의 닉네임을 찾을 수 없습니다: $followingId');
       }
       
-      final followingNickname = followingNicknameRaw
-          .replaceAll('/', '_')
-          .replaceAll('?', '_')
-          .replaceAll('#', '_')
-          .replaceAll('[', '_')
-          .replaceAll(']', '_')
-          .replaceAll('*', '_')
-          .trim();
+      final followingNickname = NicknameNormalizer.normalize(followingNicknameRaw);
       
       // nickname으로 된 문서 삭제 시도
       final followingRefByNickname = _firestore
@@ -237,29 +225,7 @@ class FollowService {
 
       return snapshot.docs.map((doc) {
         final data = doc.data();
-        
-        // createdAt 필드 처리
-        String createdAtStr;
-        if (data['createdAt'] != null) {
-          if (data['createdAt'] is Timestamp) {
-            createdAtStr = (data['createdAt'] as Timestamp).toDate().toIso8601String();
-          } else {
-            createdAtStr = data['createdAt'].toString();
-          }
-        } else {
-          createdAtStr = DateTime.now().toIso8601String();
-        }
-
-        return User(
-          id: doc.id,
-          nickname: data['nickname'] ?? '',
-          bio: data['bio'] ?? '',
-          email: data['email'] ?? '',
-          locationPublic: data['locationPublic'] ?? true,
-          followers: (data['followers'] ?? 0) as int,
-          following: (data['following'] ?? 0) as int,
-          createdAt: createdAtStr,
-        );
+        return UserConverter.fromFirestore(data, doc.id);
       }).toList();
     } catch (e) {
       debugPrint('팔로워 목록 조회 실패: $e');
@@ -278,30 +244,10 @@ class FollowService {
 
       return snapshot.docs.map((doc) {
         final data = doc.data();
-        
-        // createdAt 필드 처리
-        String createdAtStr;
-        if (data['createdAt'] != null) {
-          if (data['createdAt'] is Timestamp) {
-            createdAtStr = (data['createdAt'] as Timestamp).toDate().toIso8601String();
-          } else {
-            createdAtStr = data['createdAt'].toString();
-          }
-        } else {
-          createdAtStr = DateTime.now().toIso8601String();
-        }
-
         // 문서 ID는 nickname이므로, followingId 필드를 사용
-        return User(
-          id: data['followingId'] ?? data['id'] ?? doc.id,
-          nickname: data['nickname'] ?? '',
-          bio: data['bio'] ?? '',
-          email: data['email'] ?? '',
-          locationPublic: data['locationPublic'] ?? true,
-          followers: (data['followers'] ?? 0) as int,
-          following: (data['following'] ?? 0) as int,
-          createdAt: createdAtStr,
-        );
+        final userId = data['followingId'] ?? data['id'] ?? doc.id;
+        final user = UserConverter.fromFirestore(data, userId);
+        return user;
       }).toList();
     } catch (e) {
       debugPrint('팔로잉 목록 조회 실패: $e');
@@ -329,14 +275,7 @@ class FollowService {
         return false;
       }
       
-      final followingNickname = followingNicknameRaw
-          .replaceAll('/', '_')
-          .replaceAll('?', '_')
-          .replaceAll('#', '_')
-          .replaceAll('[', '_')
-          .replaceAll(']', '_')
-          .replaceAll('*', '_')
-          .trim();
+      final followingNickname = NicknameNormalizer.normalize(followingNicknameRaw);
       
       final doc = await _firestore
           .collection('users')

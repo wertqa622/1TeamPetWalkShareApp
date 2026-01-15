@@ -18,27 +18,6 @@ class StorageService {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_currentUserKey, json.encode(user.toJson()));
   }
-
-  static Future<User> getOrCreateDefaultUser() async {
-    final existingUser = await getCurrentUser();
-    if (existingUser != null) {
-      return existingUser;
-    }
-
-    final defaultUser = User(
-      id: '1',
-      email: 'default@example.com',
-      nickname: '산책러버',
-      bio: '우리 강아지와 함께하는 행복한 산책 🐕',
-      locationPublic: true,
-      followers: 12,
-      following: 8,
-      createdAt: DateTime.now().toIso8601String(),
-    );
-
-    await saveCurrentUser(defaultUser);
-    return defaultUser;
-  }
 }
 
 
