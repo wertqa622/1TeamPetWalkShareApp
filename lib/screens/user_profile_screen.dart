@@ -5,6 +5,8 @@ import '../models/user.dart';
 import '../services/storage_service.dart';
 import '../services/follow_service.dart';
 import '../services/block_service.dart';
+import '../utils/nickname_normalizer.dart';
+import '../utils/user_converter.dart';
 
 class UserProfileScreen extends StatefulWidget {
   final User user;
@@ -61,38 +63,14 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         if (nickname.isEmpty) continue;
         
         // Firestore 문서 ID에 사용할 수 없는 문자 제거/치환
-        final normalizedNickname = nickname
-            .replaceAll('/', '_')
-            .replaceAll('?', '_')
-            .replaceAll('#', '_')
-            .replaceAll('[', '_')
-            .replaceAll(']', '_')
-            .replaceAll('*', '_')
-            .trim();
+        final normalizedNickname = NicknameNormalizer.normalize(nickname);
         
         blockedNicknames.add(normalizedNickname);
         
         // 사용자 정보 생성
-        String createdAtStr;
-        if (data['createdAt'] != null) {
-          if (data['createdAt'] is Timestamp) {
-            createdAtStr = (data['createdAt'] as Timestamp).toDate().toIso8601String();
-          } else {
-            createdAtStr = data['createdAt'].toString();
-          }
-        } else {
-          createdAtStr = DateTime.now().toIso8601String();
-        }
-        
-        blockedUsersList.add(User(
-          id: data['blockedId'] as String? ?? data['id'] as String? ?? '',
-          email: data['email'] ?? '',
-          nickname: nickname,
-          bio: data['bio'] ?? '',
-          locationPublic: data['locationPublic'] ?? true,
-          followers: (data['followers'] ?? 0) as int,
-          following: (data['following'] ?? 0) as int,
-          createdAt: createdAtStr,
+        blockedUsersList.add(UserConverter.fromFirestore(
+          data,
+          data['blockedId'] as String? ?? data['id'] as String? ?? '',
         ));
       }
       
@@ -234,26 +212,8 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
 
   /// 특정 사용자의 nickname으로 차단 여부 확인
   bool _isUserBlockedByNickname(String nickname) {
-    // Firestore 문서 ID에 사용할 수 없는 문자 제거/치환
-    final normalizedNickname = nickname
-        .replaceAll('/', '_')
-        .replaceAll('?', '_')
-        .replaceAll('#', '_')
-        .replaceAll('[', '_')
-        .replaceAll(']', '_')
-        .replaceAll('*', '_')
-        .trim();
+    final normalizedNickname = NicknameNormalizer.normalize(nickname);
     return _blockedUserIds.contains(normalizedNickname);
-  }
-
-  /// 특정 사용자를 차단했는지 확인
-  Future<bool> _checkIfBlocked(String userId) async {
-    try {
-      return await BlockService.isBlocking(_currentUser.id, userId);
-    } catch (e) {
-      debugPrint('차단 확인 실패: $e');
-      return false;
-    }
   }
 
   /// 차단 해제
@@ -326,29 +286,17 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       if (userDoc.exists) {
         final data = userDoc.data()!;
         
-        // createdAt 필드 처리
-        String createdAtStr;
-        if (data['createdAt'] != null) {
-          if (data['createdAt'] is Timestamp) {
-            createdAtStr = (data['createdAt'] as Timestamp).toDate().toIso8601String();
-          } else {
-            createdAtStr = data['createdAt'].toString();
-          }
-        } else {
-          createdAtStr = _currentUser.createdAt;
-        }
-
         if (mounted) {
           setState(() {
-            _currentUser = User(
-              id: _currentUser.id,
-              email: data['email'] ?? _currentUser.email,
-              nickname: data['nickname'] ?? _currentUser.nickname,
-              bio: data['bio'] ?? _currentUser.bio,
-              locationPublic: data['locationPublic'] ?? _currentUser.locationPublic,
-              followers: (data['followers'] ?? _currentUser.followers) as int,
-              following: (data['following'] ?? _currentUser.following) as int,
-              createdAt: createdAtStr,
+            final updatedUser = UserConverter.fromFirestore(data, _currentUser.id);
+            _currentUser = _currentUser.copyWith(
+              email: updatedUser.email.isNotEmpty ? updatedUser.email : _currentUser.email,
+              nickname: updatedUser.nickname.isNotEmpty ? updatedUser.nickname : _currentUser.nickname,
+              bio: updatedUser.bio,
+              locationPublic: updatedUser.locationPublic,
+              followers: updatedUser.followers,
+              following: updatedUser.following,
+              createdAt: updatedUser.createdAt,
             );
           });
           widget.onUserUpdate(_currentUser);
@@ -647,28 +595,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         
         // 닉네임에 검색어가 포함되어 있는지 확인
         if (nickname.toLowerCase().contains(query.toLowerCase())) {
-          // createdAt 필드 처리
-          String createdAtStr;
-          if (data['createdAt'] != null) {
-            if (data['createdAt'] is Timestamp) {
-              createdAtStr = (data['createdAt'] as Timestamp).toDate().toIso8601String();
-            } else {
-              createdAtStr = data['createdAt'].toString();
-            }
-          } else {
-            createdAtStr = DateTime.now().toIso8601String();
-          }
-
-          results.add(User(
-            id: doc.id,
-            nickname: nickname,
-            bio: data['bio'] ?? '',
-            email: data['email'] ?? '',
-            locationPublic: data['locationPublic'] ?? true,
-            followers: (data['followers'] ?? 0) as int,
-            following: (data['following'] ?? 0) as int,
-            createdAt: createdAtStr,
-          ));
+          results.add(UserConverter.fromFirestore(data, doc.id));
         }
       }
 
@@ -1920,6 +1847,8 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                                         onSelected: (value) {
                                           if (value == 'unfollow') {
                                             _unfollowUser(user, setModalState);
+                                          } else if (value == 'block') {
+                                            _blockUser(user, setModalState, following, isFollowersList: false);
                                           }
                                         },
                                         itemBuilder: (context) => [
@@ -1930,6 +1859,16 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                                                 Icon(Icons.person_remove, color: Colors.blue),
                                                 SizedBox(width: 8),
                                                 Text('언팔로우'),
+                                              ],
+                                            ),
+                                          ),
+                                          const PopupMenuItem(
+                                            value: 'block',
+                                            child: Row(
+                                              children: [
+                                                Icon(Icons.block, color: Colors.red),
+                                                SizedBox(width: 8),
+                                                Text('차단하기', style: TextStyle(color: Colors.red)),
                                               ],
                                             ),
                                           ),

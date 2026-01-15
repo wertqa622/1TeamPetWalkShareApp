@@ -18,6 +18,7 @@ import 'screens/walk_home_tap.dart';
 import 'screens/social_feed_screen.dart';
 import 'screens/user_profile_screen.dart';
 import 'models/user.dart' as model; // User 모델 이름 충돌 방지
+import 'utils/user_converter.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -159,28 +160,9 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
       model.User user;
       if (userDoc.exists) {
         final data = userDoc.data()!;
-
-        // createdAt 필드 처리
-        String createdAtStr;
-        if (data['createdAt'] != null) {
-          if (data['createdAt'] is Timestamp) {
-            createdAtStr = (data['createdAt'] as Timestamp).toDate().toIso8601String();
-          } else {
-            createdAtStr = data['createdAt'].toString();
-          }
-        } else {
-          createdAtStr = DateTime.now().toIso8601String();
-        }
-
-        user = model.User(
-          id: _uid,
+        user = UserConverter.fromFirestore(data, _uid).copyWith(
           email: data['email'] ?? currentUserEmail,
           nickname: data['nickname'] ?? '사용자',
-          bio: data['bio'] ?? '',
-          locationPublic: data['locationPublic'] ?? true,
-          followers: (data['followers'] ?? 0) as int,
-          following: (data['following'] ?? 0) as int,
-          createdAt: createdAtStr,
         );
       } else {
         // 사용자 문서가 없으면 생성

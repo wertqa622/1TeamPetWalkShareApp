@@ -1,7 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import '../models/walk.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import '../utils/nickname_normalizer.dart';
 import 'package:share_plus/share_plus.dart';
 /// 산책 기록 관련 서비스 클래스
 class WalkService {
@@ -81,15 +81,7 @@ class WalkService {
           
           if (nicknameRaw.isNotEmpty) {
             // Firestore 문서 ID에 사용할 수 없는 문자 제거/치환
-            final normalizedNickname = nicknameRaw
-                .replaceAll('/', '_')
-                .replaceAll('?', '_')
-                .replaceAll('#', '_')
-                .replaceAll('[', '_')
-                .replaceAll(']', '_')
-                .replaceAll('*', '_')
-                .trim();
-            
+            final normalizedNickname = NicknameNormalizer.normalize(nicknameRaw);
             userIdToNicknameMap[userId] = normalizedNickname;
           }
         }
