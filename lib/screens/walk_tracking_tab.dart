@@ -106,21 +106,18 @@ class _WalkTrackingTabState extends State<WalkTrackingTab>
   }
 
   Future<void> _startWalk() async {
-    Map<Permission, PermissionStatus> statuses = await [
-      Permission.location,
-      Permission.notification,
-    ].request();
-
-    if (statuses[Permission.location]!.isDenied ||
-        statuses[Permission.notification]!.isDenied) {
+    // 1. 권한 확인
+    if (await Permission.location.request().isDenied ||
+        await Permission.notification.request().isDenied) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('위치 및 알림 권한을 허용해주세요.'))
+            const SnackBar(content: Text('위치 및 알림 권한이 필요합니다.'))
         );
       }
       return;
     }
 
+    // 2. UI 상태 변경
     setState(() {
       _isWalking = true;
       _curDuration = 0;
@@ -132,6 +129,7 @@ class _WalkTrackingTabState extends State<WalkTrackingTab>
     await Future.delayed(const Duration(milliseconds: 500));
     if (mounted) setState(() => _isPermissionReady = true);
 
+    // 3. 현재 위치 가져오기 및 Firestore 저장
     Position pos = await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(accuracy: LocationAccuracy.high)
     );
@@ -152,21 +150,29 @@ class _WalkTrackingTabState extends State<WalkTrackingTab>
       'lastUpdated': FieldValue.serverTimestamp(),
     });
 
+    // 4. [핵심 수정] 서비스가 꺼져 있다면 켜고 시작!
     final service = FlutterBackgroundService();
-    _actualStartTime = DateTime.now();
 
+    // 서비스가 실행 중인지 확인
+    if (!await service.isRunning()) {
+      await service.startService(); // 💡 여기서 서비스를 깨웁니다!
+      // 서비스가 켜지고 리스너가 등록될 때까지 아주 잠깐 대기
+      await Future.delayed(const Duration(seconds: 1));
+    }
+
+    _actualStartTime = DateTime.now();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('is_walking', true);
     await prefs.setString('walk_start_time', _actualStartTime!.toIso8601String());
     await prefs.setString('current_user_id', widget.userId);
 
+    // 이제 서비스가 켜져 있으므로 명령을 잘 받습니다.
     service.invoke('setWalkingStatus', {'isWalking': true});
 
     _startTimer();
     _listenToBackground();
     _startNearbyUsersListener();
   }
-
   void _stopWalk() {
     if (_curDuration < 60) {
       showDialog(context: context, builder: (ctx) =>
