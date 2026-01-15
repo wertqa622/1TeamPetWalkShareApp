@@ -106,7 +106,32 @@ class _WalkTrackingTabState extends State<WalkTrackingTab>
   }
 
   Future<void> _startWalk() async {
-    // 1. 권한 확인
+    // 1. [추가] 등록된 반려동물이 있는지 확인
+    final petSnap = await FirebaseFirestore.instance
+        .collection('pets')
+        .where('userId', isEqualTo: widget.userId)
+        .get();
+
+    if (petSnap.docs.isEmpty) {
+      if (mounted) {
+        showDialog(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('반려동물 등록 필요 🐾'),
+            content: const Text('산책을 시작하려면 먼저 반려동물을 등록해야 합니다.'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('취소'),
+              ),
+            ],
+          ),
+        );
+      }
+      return; // 반려동물이 없으면 여기서 중단
+    }
+
+    // 2. 권한 확인 (기존 코드)
     if (await Permission.location.request().isDenied ||
         await Permission.notification.request().isDenied) {
       if (mounted) {
@@ -117,7 +142,7 @@ class _WalkTrackingTabState extends State<WalkTrackingTab>
       return;
     }
 
-    // 2. UI 상태 변경
+    // 3. UI 상태 변경 (기존 코드)
     setState(() {
       _isWalking = true;
       _curDuration = 0;
@@ -129,7 +154,7 @@ class _WalkTrackingTabState extends State<WalkTrackingTab>
     await Future.delayed(const Duration(milliseconds: 500));
     if (mounted) setState(() => _isPermissionReady = true);
 
-    // 3. 현재 위치 가져오기 및 Firestore 저장
+    // 4. 현재 위치 가져오기 및 Firestore 저장 (기존 코드)
     Position pos = await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(accuracy: LocationAccuracy.high)
     );
@@ -150,13 +175,10 @@ class _WalkTrackingTabState extends State<WalkTrackingTab>
       'lastUpdated': FieldValue.serverTimestamp(),
     });
 
-    // 4. [핵심 수정] 서비스가 꺼져 있다면 켜고 시작!
+    // 5. 서비스 실행 확인 및 시작 (기존 코드)
     final service = FlutterBackgroundService();
-
-    // 서비스가 실행 중인지 확인
     if (!await service.isRunning()) {
-      await service.startService(); // 💡 여기서 서비스를 깨웁니다!
-      // 서비스가 켜지고 리스너가 등록될 때까지 아주 잠깐 대기
+      await service.startService();
       await Future.delayed(const Duration(seconds: 1));
     }
 
@@ -166,7 +188,6 @@ class _WalkTrackingTabState extends State<WalkTrackingTab>
     await prefs.setString('walk_start_time', _actualStartTime!.toIso8601String());
     await prefs.setString('current_user_id', widget.userId);
 
-    // 이제 서비스가 켜져 있으므로 명령을 잘 받습니다.
     service.invoke('setWalkingStatus', {'isWalking': true});
 
     _startTimer();
