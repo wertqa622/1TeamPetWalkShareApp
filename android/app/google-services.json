@@ -66,6 +66,14 @@
           }
         },
         {
+          "client_id": "568251685024-vi9k1i2fhgc84q147bgjl5r4kodmqhj1.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.petWalkShare",
+            "certificate_hash": "b73bfc220312f714aed0b493e02012d5fea0133e"
+          }
+        },
+        {
           "client_id": "568251685024-i7flqqtgb0gfdg8om1f7du0ffmgck70q.apps.googleusercontent.com",
           "client_type": 3
         }
