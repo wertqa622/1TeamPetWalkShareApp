@@ -17,6 +17,22 @@ final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin = FlutterL
 Future<void> initializeService() async {
   final service = FlutterBackgroundService();
 
+  // [추가] FlutterLocalNotificationsPlugin 초기화 (알람이 작동하려면 필수)
+  const AndroidInitializationSettings initializationSettingsAndroid =
+      AndroidInitializationSettings('@mipmap/ic_launcher');
+  
+  const InitializationSettings initializationSettings = InitializationSettings(
+    android: initializationSettingsAndroid,
+  );
+
+  await flutterLocalNotificationsPlugin.initialize(
+    initializationSettings,
+    onDidReceiveNotificationResponse: (NotificationResponse response) {
+      // 알림 클릭 시 처리 (필요시)
+      debugPrint('알림 클릭: ${response.payload}');
+    },
+  );
+
   // 1. 산책 기록용 채널 (조용함)
   const AndroidNotificationChannel trackingChannel = AndroidNotificationChannel(
     'walk_channel_v9',
